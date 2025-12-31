@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm i:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(npx tsc:*)",
+      "mcp__filesystem__directory_tree",
+      "Bash(gcc:*)",
+      "Bash(python3:*)",
+      "Bash(# Create a scenario: First have routes that use specific spines # Then add a new route that forces rerouting echo -e \"\"1.1\\\\n11.1\"\" ./clos_mult_router /tmp/conflict_routes1.txt --json /tmp/conflict_state1.json 2>&1)",
+      "Bash(./clos_mult_router:*)",
+      "Bash(# Create a more realistic test case # 1. Start with multiple routes echo -e \"\"1.1\\\\n2.2\\\\n3.3\"\" ./clos_mult_router /tmp/routes_a.txt --json /tmp/state_a.json 2>&1)",
+      "Bash(done)",
+      "Bash(timeout 15 ./clos_mult_router:*)",
+      "Bash(while read line)",
+      "Bash(do echo \"$line\")",
+      "Bash(timeout 120 ./clos_mult_router:*)",
+      "Bash(timeout 60 ./clos_mult_router:*)",
+      "Bash(for f in clos-viz/public/routes/stress*.txt)",
+      "Bash(do echo -n \"$f: \")",
+      "Bash(timeout 30 ./clos_mult_router:*)"
+    ]
+  }
+}

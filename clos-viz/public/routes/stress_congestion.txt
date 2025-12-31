@@ -1,0 +1,75 @@
+# Stress test: Spine contention / congestion (60 inputs)
+# Many inputs from different blocks targeting same egress blocks
+# Forces solver to use different spines for each
+
+# All 10 blocks sending to egress block 1 (outputs 1-10)
+1.1
+11.2
+21.3
+31.4
+41.5
+51.6
+61.7
+71.8
+81.9
+91.10
+
+# All 10 blocks sending to egress block 2 (outputs 11-20)
+2.11
+12.12
+22.13
+32.14
+42.15
+52.16
+62.17
+72.18
+82.19
+92.20
+
+# All 10 blocks sending to egress block 3 (outputs 21-30)
+3.21
+13.22
+23.23
+33.24
+43.25
+53.26
+63.27
+73.28
+83.29
+93.30
+
+# All 10 blocks sending to egress block 4 (outputs 31-40)
+4.31
+14.32
+24.33
+34.34
+44.35
+54.36
+64.37
+74.38
+84.39
+94.40
+
+# All 10 blocks sending to egress block 5 (outputs 41-50)
+5.41
+15.42
+25.43
+35.44
+45.45
+55.46
+65.47
+75.48
+85.49
+95.50
+
+# All 10 blocks sending to egress block 6 (outputs 51-60)
+6.51
+16.52
+26.53
+36.54
+46.55
+56.56
+66.57
+76.58
+86.59
+96.60

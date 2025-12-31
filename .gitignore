@@ -1,0 +1,11 @@
+# Compiled binaries
+clos_mult_router
+
+# Generated output
+state.json
+clos-viz/state.json
+*.json.tmp
+.tmp_*
+
+# OS files
+.DS_Store
