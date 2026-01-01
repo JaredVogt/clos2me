@@ -37,6 +37,9 @@ export default function App() {
   // Stability mode
   const [strictStability, setStrictStability] = useState(false)
 
+  // Crossbar size (4-10, default 10)
+  const [crossbarSize, setCrossbarSize] = useState(10)
+
   // Relay mode - toggle with 'r' key
   const [relayMode, setRelayMode] = useState(false)
 
@@ -48,6 +51,12 @@ export default function App() {
   const [isResizing, setIsResizing] = useState(false)
 
   const inputs = useMemo(() => (state ? deriveInputs(state) : []), [state])
+
+  // Helper to strip size suffix from filename for display
+  // e.g., "stress_stability.10.txt" -> "stress_stability"
+  const displayName = useCallback((filename: string) => {
+    return filename.replace(/\.\d+\.txt$/, "")
+  }, [])
 
   // Debug: log state changes
   useEffect(() => {
@@ -293,14 +302,60 @@ export default function App() {
     }
   }
 
-  // Fetch route files on mount
+  // Fetch crossbar size on mount
   useEffect(() => {
-    fetchRouteFiles()
+    fetchCrossbarSize()
   }, [])
 
-  async function fetchRouteFiles() {
+  // Fetch route files when crossbar size changes
+  useEffect(() => {
+    fetchRouteFiles(crossbarSize)
+  }, [crossbarSize])
+
+  async function fetchCrossbarSize() {
     try {
-      const res = await fetch("/api/routes")
+      const res = await fetch("/api/size")
+      const data = await res.json()
+      if (data.size) setCrossbarSize(data.size)
+    } catch (e) {
+      console.error("Failed to fetch crossbar size:", e)
+    }
+  }
+
+  async function handleSizeChange(newSize: number) {
+    setError(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch("/api/size", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ size: newSize })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to set size")
+      }
+
+      setCrossbarSize(newSize)
+      // Clear state when size changes - user should reload a route file
+      setState(null)
+      setRoutes({})
+      setSelectedInput(null)
+      setSelectedRoute(null)
+      setModifiedFile(null)
+      setSolverLog([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to set size")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchRouteFiles(size: number = crossbarSize) {
+    try {
+      const res = await fetch(`/api/routes?size=${size}`)
       const data = await res.json()
       setRouteFiles(data.files || [])
     } catch (e) {
@@ -314,11 +369,20 @@ export default function App() {
     setSelectedRoute(filename)
     setModifiedFile(null) // Clear modified state when loading a new file
 
+    // Extract size from filename (e.g., "test.8.txt" -> 8)
+    const sizeMatch = filename.match(/\.(\d+)\.txt$/)
+    const fileSize = sizeMatch ? parseInt(sizeMatch[1], 10) : crossbarSize
+
+    // Update crossbar size to match file
+    if (fileSize !== crossbarSize) {
+      setCrossbarSize(fileSize)
+    }
+
     try {
       const res = await fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename })
+        body: JSON.stringify({ filename, size: fileSize })
       })
 
       if (!res.ok) {
@@ -397,7 +461,7 @@ export default function App() {
       const res = await fetch("/api/routes/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: name.trim() })
+        body: JSON.stringify({ filename: name.trim(), size: crossbarSize })
       })
 
       if (!res.ok) {
@@ -408,9 +472,8 @@ export default function App() {
       const data = await res.json()
       await fetchRouteFiles()
 
-      // Select the new file and clear state
-      setSelectedRoute(data.filename)
-      setState(null)
+      // Process the new file to initialize empty state with correct crossbar size
+      await processRouteFile(data.filename)
       setModifiedFile(null)
       setShowNewInput(false)
       setNewFileName("")
@@ -551,6 +614,20 @@ export default function App() {
             [R] Relay Mode
           </div>
         )}
+        <div className="sizeSelector">
+          <label>
+            Size:
+            <select
+              value={crossbarSize}
+              onChange={e => handleSizeChange(parseInt(e.target.value, 10))}
+              disabled={loading}
+            >
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
+                <option key={n} value={n}>{n}×{n}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label className="stabilityToggle">
           <input
             type="checkbox"
@@ -605,7 +682,7 @@ export default function App() {
                 disabled={loading}
               >
                 <span className="routeFileName">
-                  {selectedRoute ? selectedRoute.replace(/\.txt$/, "") : "Select route file..."}
+                  {selectedRoute ? displayName(selectedRoute) : "Select route file..."}
                   {modifiedFile && selectedRoute && <span className="modifiedDot"> •</span>}
                 </span>
                 <span className="dropdownChevron">{dropdownOpen ? "▲" : "▼"}</span>
@@ -699,7 +776,7 @@ export default function App() {
                                 setDropdownOpen(false)
                               }}
                             >
-                              {f.replace(/\.txt$/, "")}
+                              {displayName(f)}
                               {modifiedFile === f && <span className="modifiedDot"> •</span>}
                             </button>
                             <div className="routeDropdownActions">
@@ -707,7 +784,7 @@ export default function App() {
                                 onClick={e => {
                                   e.stopPropagation()
                                   setRenameFile(f)
-                                  setRenameValue(f.replace(/\.txt$/, ""))
+                                  setRenameValue(displayName(f))
                                 }}
                               >
                                 Rename

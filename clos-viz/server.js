@@ -20,6 +20,9 @@ const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
 // Cache last fabric state for stability preservation
 let lastState = null
 
+// Current crossbar size (default 10)
+let currentSize = 10
+
 // Parse router stdout into structured log entries
 function parseRouterLog(stdout, state = {}) {
   const entries = []
@@ -115,18 +118,26 @@ app.use(express.json())
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, ROUTES_DIR),
   filename: (req, file, cb) => {
-    // Sanitize filename
-    const name = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")
-    cb(null, name)
+    // Sanitize filename and add size suffix
+    let name = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")
+    // Strip existing extensions to get base name
+    const baseName = name.replace(/\.\d+\.txt$/, "").replace(/\.txt$/, "")
+    // Add current size suffix
+    const finalName = `${baseName}.${currentSize}.txt`
+    cb(null, finalName)
   }
 })
 const upload = multer({ storage })
 
-// GET /api/routes - List all route files
+// GET /api/routes - List route files filtered by crossbar size
+// Query param: ?size=10 (defaults to current size)
 app.get("/api/routes", (req, res) => {
   try {
+    const size = parseInt(req.query.size, 10) || currentSize
+    const suffix = `.${size}.txt`
+
     const files = fs.readdirSync(ROUTES_DIR)
-      .filter(f => f.endsWith(".txt"))
+      .filter(f => f.endsWith(suffix))
       .sort()
     res.json({ files })
   } catch (err) {
@@ -143,20 +154,26 @@ app.post("/api/routes", upload.single("file"), (req, res) => {
 })
 
 // POST /api/routes/create - Create a new empty route file
+// Body: { filename: "myroute", size?: 10 }
+// Creates file as: myroute.{size}.txt
 app.post("/api/routes/create", (req, res) => {
-  const { filename } = req.body
+  const { filename, size } = req.body
+  const targetSize = parseInt(size, 10) || currentSize
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
   }
 
-  // Validate filename (alphanumeric, dashes, underscores, dots)
-  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
-    return res.status(400).json({ error: "Invalid filename. Use only letters, numbers, dashes, underscores, and dots." })
+  // Strip any existing extensions for clean naming
+  let baseName = filename.replace(/\.\d+\.txt$/, "").replace(/\.txt$/, "")
+
+  // Validate base filename (alphanumeric, dashes, underscores)
+  if (!/^[a-zA-Z0-9_-]+$/.test(baseName)) {
+    return res.status(400).json({ error: "Invalid filename. Use only letters, numbers, dashes, and underscores." })
   }
 
-  // Ensure .txt extension
-  const finalName = filename.endsWith(".txt") ? filename : filename + ".txt"
+  // Build final name with size suffix
+  const finalName = `${baseName}.${targetSize}.txt`
   const filepath = path.join(ROUTES_DIR, finalName)
 
   // Security: ensure file is within ROUTES_DIR
@@ -178,6 +195,7 @@ app.post("/api/routes/create", (req, res) => {
 })
 
 // PATCH /api/routes/:filename - Rename a route file
+// Preserves the size suffix from the original filename
 app.patch("/api/routes/:filename", (req, res) => {
   const { filename } = req.params
   const { newName } = req.body
@@ -186,16 +204,25 @@ app.patch("/api/routes/:filename", (req, res) => {
     return res.status(400).json({ error: "No new name provided" })
   }
 
-  // Validate both filenames
+  // Validate original filename
   if (filename.includes("..") || filename.includes("/")) {
     return res.status(400).json({ error: "Invalid filename" })
   }
-  if (!/^[a-zA-Z0-9._-]+$/.test(newName)) {
-    return res.status(400).json({ error: "Invalid new filename. Use only letters, numbers, dashes, underscores, and dots." })
+
+  // Extract size from original filename (e.g., "test.10.txt" -> "10")
+  const sizeMatch = filename.match(/\.(\d+)\.txt$/)
+  const size = sizeMatch ? sizeMatch[1] : currentSize
+
+  // Strip any extensions from new name to get base name
+  const baseName = newName.replace(/\.\d+\.txt$/, "").replace(/\.txt$/, "")
+
+  // Validate base name
+  if (!/^[a-zA-Z0-9_-]+$/.test(baseName)) {
+    return res.status(400).json({ error: "Invalid new filename. Use only letters, numbers, dashes, and underscores." })
   }
 
-  // Ensure .txt extension
-  const finalNewName = newName.endsWith(".txt") ? newName : newName + ".txt"
+  // Build final name preserving size suffix
+  const finalNewName = `${baseName}.${size}.txt`
 
   const oldPath = path.join(ROUTES_DIR, filename)
   const newPath = path.join(ROUTES_DIR, finalNewName)
@@ -287,10 +314,18 @@ app.put("/api/routes/:filename", (req, res) => {
 
 // POST /api/process - Run router on a route file
 app.post("/api/process", (req, res) => {
-  const { filename } = req.body
+  const { filename, size } = req.body
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
+  }
+
+  // Update crossbar size if provided
+  if (size !== undefined) {
+    const s = parseInt(size, 10)
+    if (s >= 2 && s <= 14) {
+      currentSize = s
+    }
   }
 
   const routePath = path.join(ROUTES_DIR, filename)
@@ -316,8 +351,8 @@ app.post("/api/process", (req, res) => {
     // Create temp file for JSON output
     const tmpJson = path.join(__dirname, ".tmp_state.json")
 
-    // Run the router and capture stdout
-    const stdout = execSync(`"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}"`, {
+    // Run the router and capture stdout (include --size flag)
+    const stdout = execSync(`"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}" --size ${currentSize}`, {
       encoding: "utf-8",
       timeout: 60000
     })
@@ -342,13 +377,21 @@ app.post("/api/process", (req, res) => {
 })
 
 // POST /api/process-routes - Process routes from JSON directly
-// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean }
-// e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true }
+// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, size?: number }
+// e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true, size: 8 }
 app.post("/api/process-routes", (req, res) => {
-  const { routes, strictStability } = req.body
+  const { routes, strictStability, size } = req.body
 
   if (!routes || typeof routes !== "object") {
     return res.status(400).json({ error: "No routes provided" })
+  }
+
+  // Update crossbar size if provided
+  if (size !== undefined) {
+    const s = parseInt(size, 10)
+    if (s >= 2 && s <= 14) {
+      currentSize = s
+    }
   }
 
   // Check if router binary exists
@@ -377,8 +420,8 @@ app.post("/api/process-routes", (req, res) => {
 
     fs.writeFileSync(tmpRoutes, lines.join("\n"))
 
-    // Build command with optional previous state and strict stability
-    let cmd = `"${ROUTER_PATH}" "${tmpRoutes}" --json "${tmpJson}"`
+    // Build command with optional previous state, strict stability, and size
+    let cmd = `"${ROUTER_PATH}" "${tmpRoutes}" --json "${tmpJson}" --size ${currentSize}`
 
     if (lastState) {
       fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
@@ -420,6 +463,29 @@ app.post("/api/process-routes", (req, res) => {
     }
     res.status(500).json({ error: err.message })
   }
+})
+
+// GET /api/size - Get current crossbar size
+app.get("/api/size", (req, res) => {
+  res.json({ size: currentSize })
+})
+
+// POST /api/size - Set crossbar size
+app.post("/api/size", (req, res) => {
+  const { size } = req.body
+
+  if (size === undefined) {
+    return res.status(400).json({ error: "No size provided" })
+  }
+
+  const s = parseInt(size, 10)
+  if (s < 2 || s > 14) {
+    return res.status(400).json({ error: "Size must be between 2 and 14" })
+  }
+
+  currentSize = s
+  lastState = null  // Clear cached state when size changes
+  res.json({ size: currentSize })
 })
 
 app.listen(PORT, () => {
