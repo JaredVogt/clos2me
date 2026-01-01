@@ -20,6 +20,89 @@ const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
 // Cache last fabric state for stability preservation
 let lastState = null
 
+// Parse router stdout into structured log entries
+function parseRouterLog(stdout, state = {}) {
+  const entries = []
+  const timestamp = new Date().toISOString()
+
+  // Extract fabric summary as a single entry
+  const summaryStart = stdout.indexOf('=== Fabric Summary ===')
+  let fabricSummaryText = null
+  if (summaryStart !== -1) {
+    fabricSummaryText = stdout.slice(summaryStart)
+      .split('\n')
+      .filter(l => l.trim())
+      .join('\n')
+  }
+
+  // Only parse lines before the fabric summary
+  const mainOutput = summaryStart !== -1 ? stdout.slice(0, summaryStart) : stdout
+  const lines = mainOutput.split('\n').filter(line => line.trim())
+
+  for (const line of lines) {
+    let entry = null
+
+    // Summary level entries
+    if (line.includes('REPACK OK:')) {
+      entry = { level: 'summary', type: 'success', message: line.trim() }
+    } else if (line.includes('FAIL:')) {
+      entry = { level: 'summary', type: 'error', message: line.trim() }
+    }
+    // Route level entries
+    else if (line.includes('>> ROUTE:')) {
+      entry = { level: 'route', type: 'info', message: line.trim() }
+    } else if (line.includes('ROLLBACK:')) {
+      entry = { level: 'route', type: 'warning', message: line.trim() }
+    }
+    // Detail level entries
+    else if (line.includes('UNSAT DETAILS:') || line.includes('VALIDATION')) {
+      entry = { level: 'detail', type: 'error', message: line.trim() }
+    } else if (line.includes('Egress block') || line.includes('Ingress block')) {
+      entry = { level: 'detail', type: 'info', message: line.trim() }
+    } else if (line.trim().startsWith('---')) {
+      // Skip separator lines
+      continue
+    } else if (line.trim()) {
+      // Other output as detail
+      entry = { level: 'detail', type: 'info', message: line.trim() }
+    }
+
+    if (entry) {
+      entries.push({ ...entry, timestamp })
+    }
+  }
+
+  // Add summary info from state
+  if (state.strict_stability !== undefined) {
+    entries.unshift({
+      level: 'summary',
+      type: 'info',
+      message: `Strict stability: ${state.strict_stability ? 'enabled' : 'disabled'}`,
+      timestamp
+    })
+  }
+  if (state.stability_changes !== undefined && state.stability_changes > 0) {
+    entries.push({
+      level: 'summary',
+      type: 'warning',
+      message: `Stability changes: ${state.stability_changes} routes rerouted`,
+      timestamp
+    })
+  }
+
+  // Add fabric summary as single summary-level entry
+  if (fabricSummaryText) {
+    entries.push({
+      level: 'summary',
+      type: 'info',
+      message: fabricSummaryText,
+      timestamp
+    })
+  }
+
+  return entries
+}
+
 // Ensure routes directory exists
 if (!fs.existsSync(ROUTES_DIR)) {
   fs.mkdirSync(ROUTES_DIR, { recursive: true })
@@ -57,6 +140,87 @@ app.post("/api/routes", upload.single("file"), (req, res) => {
     return res.status(400).json({ error: "No file uploaded" })
   }
   res.json({ filename: req.file.filename, message: "File uploaded successfully" })
+})
+
+// POST /api/routes/create - Create a new empty route file
+app.post("/api/routes/create", (req, res) => {
+  const { filename } = req.body
+
+  if (!filename) {
+    return res.status(400).json({ error: "No filename provided" })
+  }
+
+  // Validate filename (alphanumeric, dashes, underscores, dots)
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
+    return res.status(400).json({ error: "Invalid filename. Use only letters, numbers, dashes, underscores, and dots." })
+  }
+
+  // Ensure .txt extension
+  const finalName = filename.endsWith(".txt") ? filename : filename + ".txt"
+  const filepath = path.join(ROUTES_DIR, finalName)
+
+  // Security: ensure file is within ROUTES_DIR
+  if (!filepath.startsWith(ROUTES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  // Check if file already exists
+  if (fs.existsSync(filepath)) {
+    return res.status(409).json({ error: "File already exists" })
+  }
+
+  try {
+    fs.writeFileSync(filepath, "")
+    res.json({ filename: finalName, success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/routes/:filename - Rename a route file
+app.patch("/api/routes/:filename", (req, res) => {
+  const { filename } = req.params
+  const { newName } = req.body
+
+  if (!newName) {
+    return res.status(400).json({ error: "No new name provided" })
+  }
+
+  // Validate both filenames
+  if (filename.includes("..") || filename.includes("/")) {
+    return res.status(400).json({ error: "Invalid filename" })
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(newName)) {
+    return res.status(400).json({ error: "Invalid new filename. Use only letters, numbers, dashes, underscores, and dots." })
+  }
+
+  // Ensure .txt extension
+  const finalNewName = newName.endsWith(".txt") ? newName : newName + ".txt"
+
+  const oldPath = path.join(ROUTES_DIR, filename)
+  const newPath = path.join(ROUTES_DIR, finalNewName)
+
+  // Security: ensure both paths are within ROUTES_DIR
+  if (!oldPath.startsWith(ROUTES_DIR) || !newPath.startsWith(ROUTES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  // Check source exists
+  if (!fs.existsSync(oldPath)) {
+    return res.status(404).json({ error: "File not found" })
+  }
+
+  // Check destination doesn't exist
+  if (fs.existsSync(newPath) && oldPath !== newPath) {
+    return res.status(409).json({ error: "A file with that name already exists" })
+  }
+
+  try {
+    fs.renameSync(oldPath, newPath)
+    res.json({ filename: finalNewName, success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // DELETE /api/routes/:filename - Delete a route file
@@ -152,15 +316,18 @@ app.post("/api/process", (req, res) => {
     // Create temp file for JSON output
     const tmpJson = path.join(__dirname, ".tmp_state.json")
 
-    // Run the router (no previous state for fresh file load)
-    execSync(`"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}"`, {
+    // Run the router and capture stdout
+    const stdout = execSync(`"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}"`, {
       encoding: "utf-8",
-      timeout: 10000
+      timeout: 60000
     })
 
     // Read and return the JSON
     const stateJson = fs.readFileSync(tmpJson, "utf-8")
     const state = JSON.parse(stateJson)
+
+    // Parse stdout into log entries
+    const solverLog = parseRouterLog(stdout, state)
 
     // Cache for future incremental updates
     lastState = state
@@ -168,7 +335,7 @@ app.post("/api/process", (req, res) => {
     // Clean up
     fs.unlinkSync(tmpJson)
 
-    res.json(state)
+    res.json({ ...state, solverLog })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -222,15 +389,18 @@ app.post("/api/process-routes", (req, res) => {
       cmd += " --strict-stability"
     }
 
-    // Run the router
-    execSync(cmd, {
+    // Run the router and capture stdout
+    const stdout = execSync(cmd, {
       encoding: "utf-8",
-      timeout: 10000
+      timeout: 60000
     })
 
     // Read and return the JSON
     const stateJson = fs.readFileSync(tmpJson, "utf-8")
     const state = JSON.parse(stateJson)
+
+    // Parse stdout into log entries
+    const solverLog = parseRouterLog(stdout, state)
 
     // Cache for future incremental updates
     lastState = state
@@ -242,7 +412,7 @@ app.post("/api/process-routes", (req, res) => {
       fs.unlinkSync(tmpPrevState)
     }
 
-    res.json(state)
+    res.json({ ...state, solverLog })
   } catch (err) {
     // Check if this is a strict stability failure
     if (err.message && err.message.includes("Strict stability")) {

@@ -15,3 +15,27 @@ export const fabricStateSchema = z.object({
 })
 
 export type FabricState = z.infer<typeof fabricStateSchema>
+
+// Solver log entry types
+export type LogLevel = 'summary' | 'route' | 'detail'
+export type LogType = 'success' | 'error' | 'info' | 'warning'
+
+export type LogEntry = {
+  level: LogLevel
+  timestamp: string
+  message: string
+  type: LogType
+}
+
+export const solverResponseSchema = fabricStateSchema.extend({
+  solverLog: z.array(z.object({
+    level: z.enum(['summary', 'route', 'detail']),
+    timestamp: z.string(),
+    message: z.string(),
+    type: z.enum(['success', 'error', 'info', 'warning'])
+  })).optional(),
+  stability_changes: z.number().optional(),
+  strict_stability: z.boolean().optional()
+})
+
+export type SolverResponse = z.infer<typeof solverResponseSchema>

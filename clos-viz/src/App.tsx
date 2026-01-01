@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useRef } from "react"
-import { fabricStateSchema, type FabricState } from "./schema"
+import { useEffect, useMemo, useState, useRef, useCallback } from "react"
+import { solverResponseSchema, type FabricState, type LogEntry, type LogLevel } from "./schema"
 import { deriveInputs } from "./derive"
 import { FabricView } from "./FabricView"
+import { LogPanel } from "./LogPanel"
 import "./index.css"
 
 export default function App() {
@@ -16,14 +17,35 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
 
+  // Dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [renameFile, setRenameFile] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [showNewInput, setShowNewInput] = useState(false)
+  const [newFileName, setNewFileName] = useState("")
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const newInputRef = useRef<HTMLInputElement>(null)
+
   // Route creation state
   const [pendingInput, setPendingInput] = useState<number | null>(null)
   const [pendingOutputs, setPendingOutputs] = useState<number[]>([])
   const [routes, setRoutes] = useState<Record<number, number[]>>({})
   const [modifiedFile, setModifiedFile] = useState<string | null>(null)
+  const [lastRoutedInput, setLastRoutedInput] = useState<number | null>(null)
 
   // Stability mode
   const [strictStability, setStrictStability] = useState(false)
+
+  // Relay mode - toggle with 'r' key
+  const [relayMode, setRelayMode] = useState(false)
+
+  // Solver log state
+  const [solverLog, setSolverLog] = useState<LogEntry[]>([])
+  const [logLevel, setLogLevel] = useState<LogLevel>('summary')
+  const [persistLog, setPersistLog] = useState(false)
+  const [logPanelWidth, setLogPanelWidth] = useState(400)
+  const [isResizing, setIsResizing] = useState(false)
 
   const inputs = useMemo(() => (state ? deriveInputs(state) : []), [state])
 
@@ -50,34 +72,96 @@ export default function App() {
     setRoutes(newRoutes)
   }, [state])
 
+  // Keyboard shortcuts: ESC cancels route, R toggles relay mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't trigger if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      if (e.key === 'Escape' && pendingInput !== null) {
+        setPendingInput(null)
+        setPendingOutputs([])
+      }
+
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        e.stopPropagation()
+        setRelayMode(prev => !prev)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [pendingInput])
+
+  // Handle log panel resize
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX
+      setLogPanelWidth(Math.max(200, Math.min(800, newWidth)))
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
+
   // Handle route creation clicks (Click = create, Shift-click = add multicast)
   async function handleRouteClick(portId: number, isInput: boolean, event: React.MouseEvent) {
     console.log(`[debug] handleRouteClick: portId=${portId}, isInput=${isInput}, shiftKey=${event.shiftKey}`)
     console.log(`[debug] Current state: pendingInput=${pendingInput}, pendingOutputs=[${pendingOutputs.join(',')}]`)
 
     if (isInput) {
+      // Check for Ctrl+click (Windows/Linux) or Cmd+click (Mac) to DELETE
+      if (event.ctrlKey || event.metaKey) {
+        if (routes[portId]) {
+          console.log(`[debug] Ctrl/Cmd-click: deleting route for input ${portId}`)
+          await deleteRoute(portId)
+        }
+        return
+      }
       // Click on input port - select it for routing
       setPendingInput(portId)
       setPendingOutputs([])
       console.log(`[debug] Selected input ${portId} for routing`)
     } else {
       // Click on output port
-      if (pendingInput === null) {
-        console.log(`[debug] No input selected, ignoring output click`)
-        return
-      }
-
       if (event.shiftKey) {
-        // Shift-click: add output to route and submit immediately
-        if (pendingOutputs.includes(portId)) {
+        // Shift-click: add output to existing route for lastRoutedInput
+        if (lastRoutedInput === null) {
+          console.log(`[debug] No previous route, ignoring shift-click`)
+          return
+        }
+        const currentOutputs = routes[lastRoutedInput] || []
+        if (currentOutputs.includes(portId)) {
           console.log(`[debug] Output ${portId} already in route, skipping`)
           return
         }
-        const outputs = [...pendingOutputs, portId]
-        console.log(`[debug] Shift-click: adding output ${portId}, creating route: input ${pendingInput} → outputs [${outputs.join(',')}]`)
-        await submitRoute(pendingInput, outputs)
+        const outputs = [...currentOutputs, portId]
+        console.log(`[debug] Shift-click: adding output ${portId} to input ${lastRoutedInput}, outputs [${outputs.join(',')}]`)
+        await submitRoute(lastRoutedInput, outputs)
       } else {
-        // Click: create/replace route with just this output
+        // Regular click: create route with pendingInput
+        if (pendingInput === null) {
+          console.log(`[debug] No input selected, ignoring output click`)
+          return
+        }
         console.log(`[debug] Click: creating route: input ${pendingInput} → output [${portId}]`)
         await submitRoute(pendingInput, [portId])
       }
@@ -89,8 +173,21 @@ export default function App() {
     setError(null)
     setLoading(true)
 
+    // Derive current routes directly from state to avoid race conditions
+    // (the `routes` state may be stale if useEffect hasn't run yet)
+    const currentRoutes: Record<number, number[]> = {}
+    if (state) {
+      for (let port = 1; port <= state.MAX_PORTS; port++) {
+        const owner = state.s3_port_owner[port]
+        if (owner && owner > 0) {
+          if (!currentRoutes[owner]) currentRoutes[owner] = []
+          currentRoutes[owner].push(port)
+        }
+      }
+    }
+
     // Build new routes map
-    const newRoutes = { ...routes }
+    const newRoutes = { ...currentRoutes }
 
     // Remove this input's existing routes
     delete newRoutes[inputId]
@@ -124,22 +221,73 @@ export default function App() {
       }
 
       const json = await res.json()
-      const parsed = fabricStateSchema.parse(json)
+      const parsed = solverResponseSchema.parse(json)
       setState(parsed)
       setSelectedInput(inputId) // Select the newly created route
+
+      // Update solver log
+      if (parsed.solverLog) {
+        setSolverLog(prev => persistLog ? [...prev, ...parsed.solverLog] : parsed.solverLog)
+      }
+
       // Track that we modified the currently selected file
       if (selectedRoute) {
         setModifiedFile(selectedRoute)
       }
 
-      // Keep input selected so user can add more outputs with Shift+Option
-      // Set pendingOutputs to current outputs so Shift+Option adds to them
-      setPendingOutputs(outputIds)
-      console.log(`[debug] Route created. Keeping input ${inputId} selected with outputs [${outputIds.join(',')}]`)
+      // Clear pending state - route is complete
+      // Remember input for shift+click to add more outputs
+      setLastRoutedInput(inputId)
+      setPendingInput(null)
+      setPendingOutputs([])
+      console.log(`[debug] Route created: input ${inputId} → outputs [${outputIds.join(',')}]`)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to process routes")
       setPendingInput(null)
       setPendingOutputs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Delete a route (Ctrl/Cmd+click on input)
+  async function deleteRoute(inputId: number) {
+    setError(null)
+    setLoading(true)
+
+    const newRoutes = { ...routes }
+    delete newRoutes[inputId]
+
+    try {
+      const res = await fetch("/api/process-routes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ routes: newRoutes, strictStability })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete route")
+      }
+
+      const json = await res.json()
+      const parsed = solverResponseSchema.parse(json)
+      setState(parsed)
+      setSelectedInput(null)
+      setPendingInput(null)
+      setPendingOutputs([])
+
+      // Update solver log
+      if (parsed.solverLog) {
+        setSolverLog(prev => persistLog ? [...prev, ...parsed.solverLog] : parsed.solverLog)
+      }
+
+      // Track modification if we loaded from a file
+      if (selectedRoute) {
+        setModifiedFile(selectedRoute)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete route")
     } finally {
       setLoading(false)
     }
@@ -179,9 +327,14 @@ export default function App() {
       }
 
       const json = await res.json()
-      const parsed = fabricStateSchema.parse(json)
+      const parsed = solverResponseSchema.parse(json)
       setState(parsed)
       setSelectedInput(null)
+
+      // Update solver log
+      if (parsed.solverLog) {
+        setSolverLog(prev => persistLog ? [...prev, ...parsed.solverLog] : parsed.solverLog)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to process route file")
     } finally {
@@ -235,6 +388,139 @@ export default function App() {
     }
   }
 
+  // Create a new empty route file
+  async function createNewRouteFile(name: string) {
+    if (!name.trim()) return
+
+    setError(null)
+    try {
+      const res = await fetch("/api/routes/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name.trim() })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to create file")
+      }
+
+      const data = await res.json()
+      await fetchRouteFiles()
+
+      // Select the new file and clear state
+      setSelectedRoute(data.filename)
+      setState(null)
+      setModifiedFile(null)
+      setShowNewInput(false)
+      setNewFileName("")
+      setDropdownOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create file")
+    }
+  }
+
+  // Rename a route file
+  async function renameRouteFile(oldName: string, newName: string) {
+    if (!newName.trim() || newName.trim() === oldName) {
+      setRenameFile(null)
+      setRenameValue("")
+      return
+    }
+
+    setError(null)
+    try {
+      const res = await fetch(`/api/routes/${encodeURIComponent(oldName)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newName: newName.trim() })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to rename file")
+      }
+
+      const data = await res.json()
+      await fetchRouteFiles()
+
+      // Update selected route if we renamed the current one
+      if (selectedRoute === oldName) {
+        setSelectedRoute(data.filename)
+      }
+      if (modifiedFile === oldName) {
+        setModifiedFile(data.filename)
+      }
+
+      setRenameFile(null)
+      setRenameValue("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename file")
+    }
+  }
+
+  // Delete a route file
+  async function deleteRouteFile(filename: string) {
+    if (!window.confirm(`Delete "${filename}"?`)) return
+
+    setError(null)
+    try {
+      const res = await fetch(`/api/routes/${encodeURIComponent(filename)}`, {
+        method: "DELETE"
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete file")
+      }
+
+      await fetchRouteFiles()
+
+      // Clear state if we deleted the current file
+      if (selectedRoute === filename) {
+        setSelectedRoute(null)
+        setState(null)
+        setModifiedFile(null)
+      }
+
+      setDropdownOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete file")
+    }
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!dropdownOpen) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+        setShowNewInput(false)
+        setNewFileName("")
+        setRenameFile(null)
+        setRenameValue("")
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [dropdownOpen])
+
+  // Focus inputs when they appear
+  useEffect(() => {
+    if (showNewInput && newInputRef.current) {
+      newInputRef.current.focus()
+    }
+  }, [showNewInput])
+
+  useEffect(() => {
+    if (renameFile && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renameFile])
+
   function onJsonFile(file: File) {
     setError(null)
     file.text().then(text => {
@@ -260,6 +546,11 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="title">Clos Fabric Visualizer</div>
+        {relayMode && (
+          <div className="relayModeIndicator">
+            [R] Relay Mode
+          </div>
+        )}
         <label className="stabilityToggle">
           <input
             type="checkbox"
@@ -300,38 +591,148 @@ export default function App() {
         </div>
       )}
 
-      <div className="body">
+      <div className="body" style={{ gridTemplateColumns: `280px minmax(0, 960px) 6px 1fr` }}>
         <aside className="sidebar">
-          {/* Route Files Section */}
+          {/* Route Files Section - Dropdown Selector */}
           <div className="panel">
             <div className="panelTitle">Route Files</div>
-            <div className="list routeList">
-              {routeFiles.map(f => (
-                <div key={f} className="routeFileRow">
-                  <button
-                    className={selectedRoute === f ? "row active" : "row"}
-                    onClick={() => processRouteFile(f)}
-                    disabled={loading}
-                  >
-                    <div className="rowMain">
-                      <div className="rowId">{f}</div>
+
+            <div className="routeSelector" ref={dropdownRef}>
+              {/* Dropdown trigger */}
+              <button
+                className={`routeDropdownTrigger ${modifiedFile ? "hasChanges" : ""}`}
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                disabled={loading}
+              >
+                <span className="routeFileName">
+                  {selectedRoute ? selectedRoute.replace(/\.txt$/, "") : "Select route file..."}
+                  {modifiedFile && selectedRoute && <span className="modifiedDot"> •</span>}
+                </span>
+                <span className="dropdownChevron">{dropdownOpen ? "▲" : "▼"}</span>
+              </button>
+
+              {/* Dropdown menu */}
+              {dropdownOpen && (
+                <div className="routeDropdownMenu">
+                  {/* New file option */}
+                  {showNewInput ? (
+                    <div className="routeDropdownItem routeDropdownNewInput">
+                      <input
+                        ref={newInputRef}
+                        type="text"
+                        className="routeNameInput"
+                        placeholder="filename.txt"
+                        value={newFileName}
+                        onChange={e => setNewFileName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            createNewRouteFile(newFileName)
+                          } else if (e.key === "Escape") {
+                            setShowNewInput(false)
+                            setNewFileName("")
+                          }
+                        }}
+                        onBlur={() => {
+                          if (newFileName.trim()) {
+                            createNewRouteFile(newFileName)
+                          } else {
+                            setShowNewInput(false)
+                          }
+                        }}
+                      />
                     </div>
-                  </button>
-                  {modifiedFile === f && (
+                  ) : (
                     <button
-                      className="saveBtn"
-                      onClick={(e) => { e.stopPropagation(); saveRouteFile(f); }}
-                      disabled={loading}
+                      className="routeDropdownItem routeDropdownNew"
+                      onClick={() => setShowNewInput(true)}
                     >
-                      Save
+                      + New Route File
                     </button>
                   )}
+
+                  {/* Upload option */}
+                  <button
+                    className="routeDropdownItem routeDropdownUpload"
+                    onClick={() => {
+                      uploadRef.current?.click()
+                      setDropdownOpen(false)
+                    }}
+                  >
+                    ↑ Upload Route File
+                  </button>
+
+                  <div className="routeDropdownDivider" />
+
+                  {/* File list */}
+                  {routeFiles.length === 0 ? (
+                    <div className="routeDropdownHint">No route files found</div>
+                  ) : (
+                    routeFiles.map(f => (
+                      <div
+                        key={f}
+                        className={`routeDropdownItem ${selectedRoute === f ? "active" : ""}`}
+                      >
+                        {renameFile === f ? (
+                          <input
+                            ref={renameInputRef}
+                            type="text"
+                            className="routeNameInput"
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                renameRouteFile(f, renameValue)
+                              } else if (e.key === "Escape") {
+                                setRenameFile(null)
+                                setRenameValue("")
+                              }
+                            }}
+                            onBlur={() => renameRouteFile(f, renameValue)}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        ) : (
+                          <>
+                            <button
+                              className="routeDropdownItemMain"
+                              onClick={() => {
+                                processRouteFile(f)
+                                setDropdownOpen(false)
+                              }}
+                            >
+                              {f.replace(/\.txt$/, "")}
+                              {modifiedFile === f && <span className="modifiedDot"> •</span>}
+                            </button>
+                            <div className="routeDropdownActions">
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setRenameFile(f)
+                                  setRenameValue(f.replace(/\.txt$/, ""))
+                                }}
+                              >
+                                Rename
+                              </button>
+                              <button
+                                className="delete"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  deleteRouteFile(f)
+                                }}
+                                title="Delete"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
-              ))}
-              {routeFiles.length === 0 && (
-                <div className="hint">No route files found</div>
               )}
             </div>
+
+            {/* Hidden file input for upload */}
             <input
               ref={uploadRef}
               type="file"
@@ -343,12 +744,17 @@ export default function App() {
                 e.target.value = ""
               }}
             />
-            <button
-              className="uploadBtn"
-              onClick={() => uploadRef.current?.click()}
-            >
-              Upload Route File
-            </button>
+
+            {/* Save button - shown when file is modified */}
+            {modifiedFile && (
+              <button
+                className="saveBtn fullWidth"
+                onClick={() => saveRouteFile(modifiedFile)}
+                disabled={loading}
+              >
+                Save Changes
+              </button>
+            )}
           </div>
 
           {/* Active Inputs Section */}
@@ -391,11 +797,28 @@ export default function App() {
               onRouteClick={handleRouteClick}
               pendingInput={pendingInput}
               pendingOutputs={pendingOutputs}
+              activeInputCount={inputs.length}
+              activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
+              relayMode={relayMode}
             />
           ) : (
             <div className="empty">Select a route file from the sidebar to visualize the fabric</div>
           )}
         </main>
+
+        <div
+          className="resizeHandle"
+          onMouseDown={() => setIsResizing(true)}
+        />
+
+        <LogPanel
+          entries={solverLog}
+          level={logLevel}
+          onLevelChange={setLogLevel}
+          persistHistory={persistLog}
+          onPersistChange={setPersistLog}
+          onClear={() => setSolverLog([])}
+        />
       </div>
     </div>
   )

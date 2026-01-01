@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState, useLayoutEffect } from "react"
+import { useMemo, useRef, useState, useLayoutEffect, useCallback } from "react"
 import type { FabricState } from "./schema"
 import { Crossbar } from "./Crossbar"
 import type { CrossbarRef } from "./Crossbar"
+import { RelayMatrix } from "./RelayMatrix"
+import { portToProPatch, parsePortId } from "./utils"
 
 type Props = {
   state: FabricState
@@ -11,6 +13,17 @@ type Props = {
   onRouteClick?: (portId: number, isInput: boolean, event: React.MouseEvent) => void
   pendingInput?: number | null
   pendingOutputs?: number[]
+  // Usage counts
+  activeInputCount?: number
+  activeOutputCount?: number
+  // Relay mode
+  relayMode?: boolean
+}
+
+type HoveredCrossbar = {
+  column: 'ingress' | 'spine' | 'egress'
+  row: number
+  position: { x: number; y: number }
 }
 
 type Cable = {
@@ -22,13 +35,31 @@ type Cable = {
   stage: 1 | 2
 }
 
-export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, pendingInput, pendingOutputs }: Props) {
+export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, pendingInput, pendingOutputs, activeInputCount, activeOutputCount, relayMode }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   // Refs for all crossbars
   const ingressRefs = useRef<(CrossbarRef | null)[]>([])
   const spineRefs = useRef<(CrossbarRef | null)[]>([])
   const egressRefs = useRef<(CrossbarRef | null)[]>([])
+
+  // Hover tracking for relay mode
+  const [hoveredCrossbar, setHoveredCrossbar] = useState<HoveredCrossbar | null>(null)
+
+  // Handle crossbar hover
+  const handleCrossbarHover = useCallback((column: 'ingress' | 'spine' | 'egress', row: number, event: React.MouseEvent) => {
+    if (!relayMode) return
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    setHoveredCrossbar({
+      column,
+      row,
+      position: { x: rect.right, y: rect.top + rect.height / 2 }
+    })
+  }, [relayMode])
+
+  const handleCrossbarLeave = useCallback(() => {
+    setHoveredCrossbar(null)
+  }, [])
 
   const [cablePositions, setCablePositions] = useState<{
     cables: Array<{ x1: number; y1: number; x2: number; y2: number; owner: number; stage: 1 | 2 }>
@@ -62,7 +93,7 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
     // Ingress blocks
     for (let block = 0; block < state.TOTAL_BLOCKS; block++) {
       const basePort = block * state.N + 1
-      const inLabels = Array.from({ length: state.N }, (_, k) => String(basePort + k))
+      const inLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
       const outLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
 
       const paths: { inIdx: number; outIdx: number; owner: number }[] = []
@@ -114,7 +145,7 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
     for (let block = 0; block < state.TOTAL_BLOCKS; block++) {
       const basePort = block * state.N + 1
       const inLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
-      const outLabels = Array.from({ length: state.N }, (_, k) => String(basePort + k))
+      const outLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
 
       const paths: { inIdx: number; outIdx: number; owner: number }[] = []
 
@@ -181,6 +212,99 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
 
     return list
   }, [state])
+
+  // Compute relay data for hovered crossbar
+  const relayData = useMemo(() => {
+    if (!hoveredCrossbar) return null
+
+    const { column, row } = hoveredCrossbar
+
+    if (column === 'ingress') {
+      // Ingress block: rows = local input ports, cols = spines
+      const block = row
+      const basePort = block * state.N + 1
+      const inLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
+      const outLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
+
+      const relays: Array<Array<{ isActive: boolean; owner: number }>> = []
+      for (let i = 0; i < state.N; i++) {
+        const rowRelays: Array<{ isActive: boolean; owner: number }> = []
+        const portId = basePort + i
+        for (let j = 0; j < state.N; j++) {
+          const owner = state.s1_to_s2[block]?.[j] ?? 0
+          const isActive = owner === portId && owner > 0
+          rowRelays.push({ isActive, owner: isActive ? owner : 0 })
+        }
+        relays.push(rowRelays)
+      }
+
+      return {
+        title: `Ingr ${String(block + 1).padStart(2, '0')} Relays`,
+        inLabels,
+        outLabels,
+        relays
+      }
+    }
+
+    if (column === 'spine') {
+      // Spine: rows = ingress blocks, cols = egress blocks
+      const spine = row
+      const inLabels = Array.from({ length: state.TOTAL_BLOCKS }, (_, b) => `I${b + 1}`)
+      const outLabels = Array.from({ length: state.TOTAL_BLOCKS }, (_, e) => `E${e + 1}`)
+
+      const relays: Array<Array<{ isActive: boolean; owner: number }>> = []
+      for (let ingressBlock = 0; ingressBlock < state.TOTAL_BLOCKS; ingressBlock++) {
+        const rowRelays: Array<{ isActive: boolean; owner: number }> = []
+        const ingressOwner = state.s1_to_s2[ingressBlock]?.[spine] ?? 0
+
+        for (let egressBlock = 0; egressBlock < state.TOTAL_BLOCKS; egressBlock++) {
+          const egressOwner = state.s2_to_s3[spine]?.[egressBlock] ?? 0
+          // Relay is active if ingress trunk is active AND egress trunk has same owner
+          const isActive = ingressOwner > 0 && egressOwner === ingressOwner
+          rowRelays.push({ isActive, owner: isActive ? ingressOwner : 0 })
+        }
+        relays.push(rowRelays)
+      }
+
+      return {
+        title: `Spine ${String(spine + 1).padStart(2, '0')} Relays`,
+        inLabels,
+        outLabels,
+        relays
+      }
+    }
+
+    if (column === 'egress') {
+      // Egress block: rows = spines, cols = local output ports
+      const block = row
+      const basePort = block * state.N + 1
+      const inLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
+      const outLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
+
+      const relays: Array<Array<{ isActive: boolean; owner: number }>> = []
+      for (let spine = 0; spine < state.N; spine++) {
+        const rowRelays: Array<{ isActive: boolean; owner: number }> = []
+        for (let k = 0; k < state.N; k++) {
+          const port = basePort + k
+          const owner = state.s3_port_owner[port] ?? 0
+          const portSpine = state.s3_port_spine[port] ?? -1
+          // Relay is active if this port uses this spine
+          const isActive = owner > 0 && portSpine === spine
+          rowRelays.push({ isActive, owner: isActive ? owner : 0 })
+        }
+        relays.push(rowRelays)
+      }
+
+      return {
+        title: `Egr ${String(block + 1).padStart(2, '0')} Relays`,
+        inLabels,
+        outLabels,
+        relays
+      }
+    }
+
+    return null
+  }, [hoveredCrossbar, state])
 
   // Measure cable positions
   function measureCables() {
@@ -252,51 +376,82 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
       )}
 
       {/* Column headers */}
-      <div className="gridHeader">Ingress</div>
+      <div className="gridHeader">Input{activeInputCount !== undefined ? ` (${activeInputCount})` : ''}</div>
       <div className="gridHeader">Spine</div>
-      <div className="gridHeader">Egress</div>
+      <div className="gridHeader">Output{activeOutputCount !== undefined ? ` (${activeOutputCount})` : ''}</div>
 
       {/* 10 rows of crossbars */}
       {Array.from({ length: state.TOTAL_BLOCKS }).map((_, row) => (
         <div key={row} className="gridRow">
-          <Crossbar
-            ref={el => { ingressRefs.current[row] = el }}
-            {...crossbars.ingress[row]}
-            selectedInput={selectedInput}
-            onSelectInput={onSelectInput}
-            onRouteClick={onRouteClick ? (label, isInput, e) => {
-              // Only handle IN port clicks on ingress (selecting input)
-              if (isInput) {
-                const portId = parseInt(label)
-                console.log(`[debug] FabricView ingress IN click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}`)
-                if (!isNaN(portId)) onRouteClick(portId, true, e)
-              }
-            } : undefined}
-            pendingInput={pendingInput}
-          />
-          <Crossbar
-            ref={el => { spineRefs.current[row] = el }}
-            {...crossbars.spine[row]}
-            selectedInput={selectedInput}
-            onSelectInput={onSelectInput}
-          />
-          <Crossbar
-            ref={el => { egressRefs.current[row] = el }}
-            {...crossbars.egress[row]}
-            selectedInput={selectedInput}
-            onSelectInput={onSelectInput}
-            onRouteClick={onRouteClick ? (label, isInput, e) => {
-              // Only handle OUT port clicks on egress (selecting output)
-              if (!isInput) {
-                const portId = parseInt(label)
-                console.log(`[debug] FabricView egress OUT click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}, altKey=${e.altKey}`)
-                if (!isNaN(portId)) onRouteClick(portId, false, e)
-              }
-            } : undefined}
-            pendingOutputs={pendingOutputs}
-          />
+          <div
+            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+            onMouseEnter={(e) => handleCrossbarHover('ingress', row, e)}
+            onMouseLeave={handleCrossbarLeave}
+          >
+            <Crossbar
+              ref={el => { ingressRefs.current[row] = el }}
+              {...crossbars.ingress[row]}
+              selectedInput={selectedInput}
+              onSelectInput={onSelectInput}
+              onRouteClick={onRouteClick ? (label, isInput, e) => {
+                // Only handle IN port clicks on ingress (selecting input)
+                if (isInput) {
+                  const portId = parsePortId(label)
+                  console.log(`[debug] FabricView ingress IN click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}`)
+                  if (!isNaN(portId)) onRouteClick(portId, true, e)
+                }
+              } : undefined}
+              pendingInput={pendingInput}
+            />
+          </div>
+          <div
+            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+            onMouseEnter={(e) => handleCrossbarHover('spine', row, e)}
+            onMouseLeave={handleCrossbarLeave}
+          >
+            <Crossbar
+              ref={el => { spineRefs.current[row] = el }}
+              {...crossbars.spine[row]}
+              selectedInput={selectedInput}
+              onSelectInput={onSelectInput}
+            />
+          </div>
+          <div
+            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+            onMouseEnter={(e) => handleCrossbarHover('egress', row, e)}
+            onMouseLeave={handleCrossbarLeave}
+          >
+            <Crossbar
+              ref={el => { egressRefs.current[row] = el }}
+              {...crossbars.egress[row]}
+              selectedInput={selectedInput}
+              onSelectInput={onSelectInput}
+              onRouteClick={onRouteClick ? (label, isInput, e) => {
+                // Only handle OUT port clicks on egress (selecting output)
+                if (!isInput) {
+                  const portId = parsePortId(label)
+                  console.log(`[debug] FabricView egress OUT click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}, altKey=${e.altKey}`)
+                  if (!isNaN(portId)) onRouteClick(portId, false, e)
+                }
+              } : undefined}
+              pendingOutputs={pendingOutputs}
+            />
+          </div>
         </div>
       ))}
+
+      {/* Relay Matrix Overlay */}
+      {relayMode && relayData && hoveredCrossbar && (
+        <RelayMatrix
+          title={relayData.title}
+          inLabels={relayData.inLabels}
+          outLabels={relayData.outLabels}
+          relays={relayData.relays}
+          selectedInput={selectedInput}
+          position={hoveredCrossbar.position}
+          onClose={handleCrossbarLeave}
+        />
+      )}
     </div>
   )
 }

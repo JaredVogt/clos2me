@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, useImperativeHandle, forwardRef } from "react"
+import { parsePortId } from "./utils"
 
 type Path = {
   inIdx: number
@@ -93,7 +94,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
           {inLabels.map((label, i) => {
             const isActive = paths.some(p => p.inIdx === i && p.owner === selectedInput)
             const isUsed = paths.some(p => p.inIdx === i)
-            const isPending = pendingInput !== null && pendingInput === parseInt(label)
+            const isPending = pendingInput !== null && pendingInput === parsePortId(label)
 
             return (
               <div
@@ -110,6 +111,11 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                     onRouteClick(label, true, e)
                   }
                 }}
+                onMouseEnter={() => {
+                  const path = paths.find(p => p.inIdx === i)
+                  if (path) onSelectInput(path.owner)
+                }}
+                onMouseLeave={() => onSelectInput(null)}
                 title={label}
               >
                 <span className="portDot" />
@@ -149,7 +155,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
           {outLabels.map((label, i) => {
             const isActive = paths.some(p => p.outIdx === i && p.owner === selectedInput)
             const isUsed = paths.some(p => p.outIdx === i)
-            const isPendingOut = pendingOutputs.includes(parseInt(label))
+            const isPendingOut = pendingOutputs.includes(parsePortId(label))
 
             return (
               <div
@@ -167,6 +173,11 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                     onRouteClick(label, false, e)
                   }
                 }}
+                onMouseEnter={() => {
+                  const path = paths.find(p => p.outIdx === i)
+                  if (path) onSelectInput(path.owner)
+                }}
+                onMouseLeave={() => onSelectInput(null)}
                 title={label}
               >
                 <span className="portText">{label}</span>

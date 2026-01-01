@@ -50,6 +50,11 @@ static bool have_previous_state = false;
 static bool strict_stability = false;  // --strict-stability flag
 static int last_stability_cost = 0;    // track changes from previous state
 
+// --- STABILITY METRICS (cumulative across all commands) ----------------------
+static int cumulative_reroutes = 0;      // total spine changes across all solves
+static int initial_route_count = 0;      // routes at start of file (from previous state)
+static bool tracked_initial = false;     // whether we've captured initial state
+
 // --- FABRIC STATE (realized solution) ---------------------------------------
 static int s1_to_s2[TOTAL_BLOCKS][N];    // ingress block -> spine trunk owner (0 free, else input_id)
 static int s2_to_s3[N][TOTAL_BLOCKS];    // spine -> egress block trunk owner (0 free, else input_id)
@@ -113,11 +118,42 @@ static void json_write_matrix_s2(FILE *f) {
   fputc(']', f);
 }
 
+// --- FABRIC STATISTICS (forward definition for JSON output) -----------------
+typedef struct {
+  // Routes
+  int routes_active;
+  int routes_preserved;   // same spine as previous
+  int routes_new;         // no previous assignment
+  int routes_removed;     // had previous but now gone
+
+  // Multicast
+  int inputs_with_mult;   // inputs with 2+ output ports
+  int inputs_multi_spine; // inputs using 2+ spines
+  int egress_with_mult;   // egress blocks with 2+ distinct inputs
+
+  // Capacity
+  int max_egress_load;    // max inputs per egress block
+  int max_egress_block;   // which block has max load (1-indexed)
+  int active_spines;      // count of spines with at least 1 route
+  int total_branches;     // sum of spines used per active input
+} FabricStats;
+
+static FabricStats compute_fabric_stats(void);  // Forward declaration
+
 static bool write_state_json(const char *path) {
   FILE *f = fopen(path, "w");
   if (!f) {
     perror("json output file");
     return false;
+  }
+
+  // Compute stats for JSON
+  FabricStats stats = compute_fabric_stats();
+  double stability_reuse_pct = 100.0;
+  if (initial_route_count > 0) {
+    int kept = initial_route_count - cumulative_reroutes;
+    if (kept < 0) kept = 0;
+    stability_reuse_pct = (kept * 100.0) / initial_route_count;
   }
 
   fprintf(f, "{");
@@ -146,8 +182,23 @@ static bool write_state_json(const char *path) {
   json_write_int_array(f, desired_owner, MAX_PORTS + 1);
   fprintf(f, ",");
 
+  // Legacy stability field
   fprintf(f, "\"stability_changes\":%d,", last_stability_cost);
-  fprintf(f, "\"strict_stability\":%s", strict_stability ? "true" : "false");
+  fprintf(f, "\"strict_stability\":%s,", strict_stability ? "true" : "false");
+
+  // New metrics
+  fprintf(f, "\"routes_active\":%d,", stats.routes_active);
+  fprintf(f, "\"routes_preserved\":%d,", stats.routes_preserved);
+  fprintf(f, "\"routes_new\":%d,", stats.routes_new);
+  fprintf(f, "\"routes_removed\":%d,", stats.routes_removed);
+  fprintf(f, "\"stability_reroutes\":%d,", cumulative_reroutes);
+  fprintf(f, "\"stability_reuse_pct\":%.1f,", stability_reuse_pct);
+  fprintf(f, "\"inputs_with_mult\":%d,", stats.inputs_with_mult);
+  fprintf(f, "\"inputs_multi_spine\":%d,", stats.inputs_multi_spine);
+  fprintf(f, "\"egress_with_mult\":%d,", stats.egress_with_mult);
+  fprintf(f, "\"max_egress_load\":%d,", stats.max_egress_load);
+  fprintf(f, "\"active_spines\":%d,", stats.active_spines);
+  fprintf(f, "\"total_branches\":%d", stats.total_branches);
 
   fprintf(f, "}\n");
 
@@ -268,6 +319,139 @@ static void print_port_map_summary(void) {
 
   if (total == 0) printf("(none)\n");
   printf("--------------------------------------\n");
+}
+
+// --- FABRIC STATISTICS (implementation) -------------------------------------
+static FabricStats compute_fabric_stats(void) {
+  FabricStats stats = {0};
+
+  // Count outputs per input and spines per input
+  int outputs_per_input[MAX_PORTS + 1] = {0};
+  uint16_t spines_per_input[MAX_PORTS + 1] = {0};  // bitmask
+
+  for (int p = 1; p <= MAX_PORTS; p++) {
+    int owner = s3_port_owner[p];
+    int spine = s3_port_spine[p];
+
+    if (owner > 0 && spine >= 0) {
+      stats.routes_active++;
+      outputs_per_input[owner]++;
+      spines_per_input[owner] |= (uint16_t)(1u << spine);
+
+      // Compare with previous state
+      if (have_previous_state) {
+        int prev_spine = prev_s3_port_spine[p];
+        if (prev_spine < 0) {
+          stats.routes_new++;
+        } else if (prev_spine == spine) {
+          stats.routes_preserved++;
+        }
+        // Note: routes_rerouted = routes that existed but changed spine
+        // This is tracked by cumulative_reroutes, not here
+      } else {
+        stats.routes_new++;  // No previous state means all are "new"
+      }
+    }
+  }
+
+  // Count removed routes (had previous spine but now disconnected)
+  if (have_previous_state) {
+    for (int p = 1; p <= MAX_PORTS; p++) {
+      if (prev_s3_port_spine[p] >= 0 && s3_port_spine[p] < 0) {
+        stats.routes_removed++;
+      }
+    }
+  }
+
+  // Count multicast metrics
+  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+    if (outputs_per_input[in_id] >= 2) {
+      stats.inputs_with_mult++;
+    }
+    int spine_count = __builtin_popcount(spines_per_input[in_id]);
+    if (spine_count >= 2) {
+      stats.inputs_multi_spine++;
+    }
+    if (spine_count > 0) {
+      stats.total_branches += spine_count;
+    }
+  }
+
+  // Egress block metrics
+  for (int e = 0; e < TOTAL_BLOCKS; e++) {
+    int inputs_in_block = 0;
+    for (int s = 0; s < N; s++) {
+      if (s2_to_s3[s][e] != 0) inputs_in_block++;
+    }
+    if (inputs_in_block >= 2) {
+      stats.egress_with_mult++;
+    }
+    if (inputs_in_block > stats.max_egress_load) {
+      stats.max_egress_load = inputs_in_block;
+      stats.max_egress_block = e + 1;  // 1-indexed for display
+    }
+  }
+
+  // Count active spines
+  for (int s = 0; s < N; s++) {
+    bool spine_active = false;
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      if (s2_to_s3[s][e] != 0) {
+        spine_active = true;
+        break;
+      }
+    }
+    if (spine_active) stats.active_spines++;
+  }
+
+  return stats;
+}
+
+static void print_fabric_summary(void) {
+  FabricStats stats = compute_fabric_stats();
+
+  printf("\n=== Fabric Summary ===\n");
+
+  // Routes section
+  printf("Routes: %d active", stats.routes_active);
+  if (have_previous_state || stats.routes_new > 0) {
+    printf(" (%d preserved, %d new", stats.routes_preserved, stats.routes_new);
+    if (stats.routes_removed > 0) {
+      printf(", %d removed", stats.routes_removed);
+    }
+    printf(")");
+  }
+  printf("\n");
+
+  // Stability section
+  if (initial_route_count > 0) {
+    int total_existing = initial_route_count;
+    int kept = total_existing - cumulative_reroutes;
+    if (kept < 0) kept = 0;  // sanity
+    double pct = (total_existing > 0) ? (kept * 100.0 / total_existing) : 100.0;
+    printf("Stability: %.1f%% reuse", pct);
+    if (cumulative_reroutes > 0) {
+      printf(" (rerouted %d across all commands)", cumulative_reroutes);
+    }
+    printf("\n");
+  }
+
+  // Multicast section
+  printf("\nMulticast:\n");
+  printf("  Inputs with mult fanout: %d (inputs using 2+ outputs)\n", stats.inputs_with_mult);
+  printf("  Inputs using 2+ spines: %d (branching in middle layer)\n", stats.inputs_multi_spine);
+  printf("  Egress blocks with 2+ inputs: %d (mult in egress)\n", stats.egress_with_mult);
+
+  // Capacity section
+  printf("\nCapacity:\n");
+  if (stats.max_egress_load > 0) {
+    printf("  Most loaded egress block: %d/%d inputs (block %d)\n",
+           stats.max_egress_load, N, stats.max_egress_block);
+  } else {
+    printf("  Most loaded egress block: 0/%d inputs\n", N);
+  }
+  printf("  Active spines: %d/%d\n", stats.active_spines, N);
+  printf("  Total branches: %d\n", stats.total_branches);
 }
 
 // --- INVARIANT CHECKER ------------------------------------------------------
@@ -456,26 +640,20 @@ typedef struct {
   int tmp_s2[N][TOTAL_BLOCKS];
   int tmp_s1_owner[TOTAL_BLOCKS][N];
 
-  // For cost minimization: number of spines used per input (branch count)
+  // Spine usage per input (for pass 1 ordering - prefer reusing spines)
   uint16_t used_spines_mask[MAX_PORTS + 1];
-  int current_cost;    // sum popcount(used_spines_mask[in]) over active inputs
-  int best_cost;
 
   // Assignment: chosen spine for each demand index
   int assignment[200];
   int best_assignment[200];
 
-  // Early stop: lower bound is active_count (each active input must use >= 1 spine)
-  int theoretical_lb;
-
   // Stability: previous spine for each (input, egress_block)
   // -1 = new route (no previous), 0-9 = previous spine assignment
   int prev_spine_for[MAX_PORTS + 1][TOTAL_BLOCKS];
 
-  // Stability cost tracking
+  // Stability cost tracking (branch cost removed for speed - see WOL-598)
   int stability_cost;       // current count of spine changes from previous state
   int best_stability_cost;  // best solution's stability cost
-  int stability_weight;     // weight for stability in combined cost (e.g., 1000)
 } SolverCtx;
 
 static int domain_size(const SolverCtx *ctx, const Demand *d) {
@@ -494,23 +672,18 @@ static int domain_size(const SolverCtx *ctx, const Demand *d) {
 }
 
 static bool backtrack(SolverCtx *ctx, int depth) {
-  // Combined cost: branch_cost + stability_weight * stability_cost
-  int combined_cost = ctx->current_cost + ctx->stability_weight * ctx->stability_cost;
-  int best_combined = ctx->best_cost + ctx->stability_weight * ctx->best_stability_cost;
-  if (combined_cost >= best_combined) return false;
+  // Optimize for stability only (branch cost removed for speed - see WOL-598)
+  if (ctx->stability_cost >= ctx->best_stability_cost) return false;
 
   if (depth == ctx->num_demands) {
-    // Found a valid assignment; record if best by combined cost
-    int this_combined = ctx->current_cost + ctx->stability_weight * ctx->stability_cost;
-    int prev_best_combined = ctx->best_cost + ctx->stability_weight * ctx->best_stability_cost;
-    if (this_combined < prev_best_combined) {
-      ctx->best_cost = ctx->current_cost;
+    // Found a valid assignment; record if best by stability cost
+    if (ctx->stability_cost < ctx->best_stability_cost) {
       ctx->best_stability_cost = ctx->stability_cost;
       for (int i = 0; i < ctx->num_demands; i++) ctx->best_assignment[i] = ctx->assignment[i];
     }
-    // If we hit the theoretical lower bound with zero stability cost, we can stop
-    if (ctx->best_cost == ctx->theoretical_lb && ctx->best_stability_cost == 0) return true;
-    return false; // keep searching for better unless LB reached
+    // If we hit zero stability cost, we can stop (perfect stability achieved)
+    if (ctx->best_stability_cost == 0) return true;
+    return false; // keep searching for better
   }
 
   // Choose next variable with MRV (smallest domain) for strong pruning
@@ -573,18 +746,17 @@ static bool backtrack(SolverCtx *ctx, int depth) {
       int prev_s2 = ctx->tmp_s2[s][egress];
       int prev_s1 = ctx->tmp_s1_owner[ingress][s];
 
-      bool added_branch = ((ctx->used_spines_mask[in_id] & (1u << s)) == 0);
+      // Track spine usage for pass 1 ordering (but don't optimize branch cost)
+      bool added_spine = ((ctx->used_spines_mask[in_id] & (1u << s)) == 0);
       uint16_t prev_mask = ctx->used_spines_mask[in_id];
-      int prev_branch_cost = ctx->current_cost;
       int prev_stab_cost = ctx->stability_cost;
 
       ctx->tmp_s2[s][egress] = in_id;
       ctx->tmp_s1_owner[ingress][s] = in_id;
       ctx->assignment[depth] = s;
 
-      if (added_branch) {
+      if (added_spine) {
         ctx->used_spines_mask[in_id] |= (uint16_t)(1u << s);
-        ctx->current_cost += 1;
       }
 
       // Add stability cost if changing from previous assignment
@@ -593,14 +765,13 @@ static bool backtrack(SolverCtx *ctx, int depth) {
         ctx->stability_cost += 1;
       }
 
-      bool hit_lb = backtrack(ctx, depth + 1);
-      if (hit_lb && ctx->best_cost == ctx->theoretical_lb && ctx->best_stability_cost == 0) return true;
+      bool perfect_stability = backtrack(ctx, depth + 1);
+      if (perfect_stability && ctx->best_stability_cost == 0) return true;
 
       // Undo
       ctx->tmp_s2[s][egress] = prev_s2;
       ctx->tmp_s1_owner[ingress][s] = prev_s1;
       ctx->used_spines_mask[in_id] = prev_mask;
-      ctx->current_cost = prev_branch_cost;
       ctx->stability_cost = prev_stab_cost;
     }
   }
@@ -644,14 +815,9 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   memset(ctx.tmp_s1_owner, 0, sizeof(ctx.tmp_s1_owner));
   memset(ctx.used_spines_mask, 0, sizeof(ctx.used_spines_mask));
 
-  ctx.current_cost = 0;
-  ctx.best_cost = 999999;
-  ctx.theoretical_lb = active_count;
-
-  // Initialize stability tracking
+  // Initialize stability tracking (branch cost optimization removed - see WOL-598)
   ctx.stability_cost = 0;
   ctx.best_stability_cost = 999999;
-  ctx.stability_weight = 1000;  // Strongly prefer stability over branch optimization
 
   // Build prev_spine_for map from previous state
   for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
@@ -672,10 +838,10 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
     }
   }
 
-  // Run complete backtracking search (with cost minimization)
+  // Run backtracking search (optimizing for stability only)
   (void)backtrack(&ctx, 0);
 
-  if (ctx.best_cost == 999999) {
+  if (ctx.best_stability_cost == 999999) {
     printf("  FAIL: No solution found (unexpected after capacity check)\n");
     print_unsat_reason(need_blocks_mask);
     return false;
@@ -736,7 +902,7 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   }
 
   *out_solution = sol;
-  *out_best_cost = ctx.best_cost;
+  *out_best_cost = 0;  // Branch cost no longer tracked (see WOL-598)
   return true;
 }
 
@@ -749,6 +915,20 @@ static void commit_solution(const FabricSolution *sol) {
 }
 
 static bool repack_fabric_and_commit(void) {
+  // Track initial route count (first time only, before any changes)
+  if (!tracked_initial && have_previous_state) {
+    for (int p = 1; p <= MAX_PORTS; p++) {
+      if (prev_s3_port_spine[p] >= 0) initial_route_count++;
+    }
+    tracked_initial = true;
+  }
+
+  // Count routes before this solve (for per-solve logging)
+  int routes_before = 0;
+  for (int p = 1; p <= MAX_PORTS; p++) {
+    if (prev_s3_port_spine[p] >= 0) routes_before++;
+  }
+
   FabricSolution sol;
   int best_cost = 0;
 
@@ -762,8 +942,19 @@ static bool repack_fabric_and_commit(void) {
     return false;
   }
 
-  // Optional: branch cost = total spines used across all active inputs
-  printf("  REPACK OK: total branches (sum spines per input) = %d\n", best_cost);
+  // Report success (compute branches from committed state for info)
+  FabricStats stats = compute_fabric_stats();
+  printf("  REPACK OK: total branches = %d\n", stats.total_branches);
+
+  // Per-solve stability logging (only when routes change)
+  if (last_stability_cost > 0 && routes_before > 0) {
+    printf("  Stability: rerouted %d of %d existing routes\n",
+           last_stability_cost, routes_before);
+  }
+
+  // Update cumulative reroutes
+  cumulative_reroutes += last_stability_cost;
+
   return true;
 }
 
@@ -994,6 +1185,7 @@ int main(int argc, char *argv[]) {
 
   print_heatmap();
   print_port_map_summary();
+  print_fabric_summary();
 
   return 0;
 }

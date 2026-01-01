@@ -92,9 +92,20 @@
 .body {
   flex: 1;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px 960px 6px 1fr;
   min-height: 0;
   overflow: hidden;
+}
+
+.resizeHandle {
+  width: 6px;
+  background: #e0e0e0;
+  cursor: col-resize;
+  transition: background 0.15s;
+}
+
+.resizeHandle:hover {
+  background: #4a90d9;
 }
 
 .sidebar {
@@ -145,19 +156,176 @@
   margin-bottom: 20px;
 }
 
-.routeList {
-  max-height: 200px;
+/* Route File Dropdown Selector */
+.routeSelector {
+  position: relative;
+}
+
+.routeDropdownTrigger {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  text-align: left;
+}
+
+.routeDropdownTrigger:hover {
+  background: #f8f8f8;
+  border-color: #bbb;
+}
+
+.routeDropdownTrigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.routeDropdownTrigger.hasChanges {
+  border-color: #4a90d9;
+}
+
+.routeFileName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdownChevron {
+  font-size: 10px;
+  color: #666;
+  margin-left: 8px;
+}
+
+.modifiedDot {
+  color: #4a90d9;
+  font-weight: bold;
+}
+
+.routeDropdownMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  max-height: 300px;
   overflow-y: auto;
 }
 
-.routeFileRow {
+.routeDropdownItem {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  gap: 8px;
 }
 
-.routeFileRow .row {
+.routeDropdownItem:hover {
+  background: #f5f5f5;
+}
+
+.routeDropdownItem.active {
+  background: #e8f0fe;
+}
+
+.routeDropdownNew {
+  color: #4a90d9;
+  font-weight: 500;
+}
+
+.routeDropdownUpload {
+  color: #666;
+}
+
+.routeDropdownNewInput {
+  padding: 6px 12px;
+}
+
+.routeDropdownHint {
+  padding: 12px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+
+.routeNameInput {
   flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #4a90d9;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+
+.routeNameInput:focus {
+  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+}
+
+.routeDropdownItemMain {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routeDropdownActions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.routeDropdownItem:hover .routeDropdownActions {
+  opacity: 1;
+}
+
+.routeDropdownActions button {
+  padding: 2px 6px;
+  font-size: 11px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.routeDropdownActions button:hover {
+  background: #f0f0f0;
+}
+
+.routeDropdownActions button.delete:hover {
+  background: #fee;
+  border-color: #fcc;
+  color: #c00;
+}
+
+.routeDropdownDivider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 4px 0;
 }
 
 .saveBtn {
@@ -180,17 +348,13 @@
   cursor: not-allowed;
 }
 
-.uploadBtn {
+.saveBtn.fullWidth {
   width: 100%;
   padding: 8px 12px;
   margin-top: 8px;
-  border: 1px solid #d0d0d0;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
   font-size: 13px;
+  border-radius: 6px;
 }
-.uploadBtn:hover { background: #f8f8f8; }
 
 .loading {
   position: absolute;
@@ -208,6 +372,8 @@
   position: relative;
   overflow: auto;
   padding: 16px;
+  min-width: 0;
+  max-width: 960px;
 }
 
 .empty {
@@ -413,4 +579,316 @@
 
 .interCable.muted {
   opacity: 0.15;
+}
+
+/* Log Panel Styles */
+.logPanel {
+  background: #fff;
+  border-left: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logHeader {
+  padding: 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.logTitle {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.logControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.logLevelSelect {
+  padding: 6px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.logPersist {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.logPersist input {
+  cursor: pointer;
+}
+
+.logClearBtn {
+  padding: 4px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.logClearBtn:hover {
+  background: #f8f8f8;
+}
+
+.logEntries {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.logEmpty {
+  color: #888;
+  padding: 20px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.logGroup {
+  margin-bottom: 12px;
+}
+
+.logGroupHeader {
+  font-size: 10px;
+  color: #888;
+  padding: 4px 6px;
+  background: #f5f5f5;
+  border-radius: 3px;
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+
+.logEntry {
+  padding: 3px 6px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  display: flex;
+  gap: 6px;
+}
+
+.logEntryLevel {
+  color: #888;
+  flex-shrink: 0;
+  width: 20px;
+}
+
+.logEntryMessage {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Log entry types */
+.logEntry--success {
+  background: #e6f9e6;
+  color: #1a7a1a;
+}
+
+.logEntry--error {
+  background: #fee;
+  color: #c00;
+}
+
+.logEntry--warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.logEntry--info {
+  background: #f5f5f5;
+  color: #333;
+}
+
+/* Log level styling */
+.logEntry--summary .logEntryLevel {
+  color: #666;
+  font-weight: 600;
+}
+
+.logEntry--summary .logEntryMessage {
+  white-space: pre-wrap;
+}
+
+.logEntry--route .logEntryLevel {
+  color: #0066cc;
+}
+
+.logEntry--detail .logEntryLevel {
+  color: #888;
+  font-style: italic;
+}
+
+/* Relay Mode Styles */
+.relayModeIndicator {
+  padding: 6px 12px;
+  background: #2a7a2a;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.crossbarWrapper {
+  display: contents;
+}
+
+.crossbarWrapper.relayModeActive {
+  display: block;
+  cursor: crosshair;
+}
+
+.crossbarWrapper.relayModeActive:hover .crossbar {
+  box-shadow: 0 0 0 2px #4ade80;
+}
+
+/* Relay Matrix Overlay */
+.relayMatrix {
+  position: fixed;
+  background: rgba(30, 30, 30, 0.97);
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 12px;
+  z-index: 1000;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  color: #e0e0e0;
+  font-size: 11px;
+}
+
+.relayMatrixTitle {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+  color: #fff;
+}
+
+.relayGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.relayGrid > div:first-child {
+  display: flex;
+  gap: 2px;
+}
+
+.relayRow {
+  display: flex;
+  gap: 2px;
+}
+
+.relayHeaderCell {
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-family: monospace;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.relayHeaderCell.relayCorner {
+  width: 44px;
+}
+
+.relayHeaderCell.relayRowLabel {
+  width: 44px;
+  justify-content: flex-end;
+  padding-right: 4px;
+}
+
+.relayHeaderCell.relayHeaderCol {
+  /* Horizontal text for column headers */
+}
+
+.relayHeaderCell.active {
+  color: #aaa;
+}
+
+.relayHeaderCell.selected {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.relayCell {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.1s ease;
+}
+
+.relayCell.unused {
+  border: 1px solid #444;
+  background: transparent;
+}
+
+.relayCell.active {
+  background: #666;
+  border: 1px solid #888;
+}
+
+.relayCell.selected {
+  background: #4ade80;
+  border: 1px solid #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+}
+
+.relayLegend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #444;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #888;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legendDot.unused {
+  border: 1px solid #444;
+  background: transparent;
+}
+
+.legendDot.active {
+  background: #666;
+  border: 1px solid #888;
+}
+
+.legendDot.selected {
+  background: #4ade80;
+  border: 1px solid #4ade80;
 }
