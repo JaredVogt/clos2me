@@ -40,7 +40,7 @@ export default function App() {
   // Crossbar size (4-10, default 10)
   const [crossbarSize, setCrossbarSize] = useState(10)
 
-  // Relay mode - toggle with 'r' key
+  // Relay mode - toggle with 'c' key
   const [relayMode, setRelayMode] = useState(false)
 
   // Solver log state
@@ -81,7 +81,7 @@ export default function App() {
     setRoutes(newRoutes)
   }, [state])
 
-  // Keyboard shortcuts: ESC cancels route, R toggles relay mode
+  // Keyboard shortcuts: ESC cancels route, C toggles relay mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Don't trigger if typing in an input
@@ -94,7 +94,7 @@ export default function App() {
         setPendingOutputs([])
       }
 
-      if (e.key === 'r' || e.key === 'R') {
+      if (e.key === 'c' || e.key === 'C') {
         e.preventDefault()
         e.stopPropagation()
         setRelayMode(prev => !prev)
@@ -608,10 +608,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="title">Clos Fabric Visualizer</div>
+        <div className="title">clos2me - clos visualizer</div>
         {relayMode && (
           <div className="relayModeIndicator">
-            [R] Relay Mode
+            [C] Relay Mode
           </div>
         )}
         <div className="sizeSelector">

@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = 4121
+const PORT = process.env.PORT || 4121
 
 const ROUTES_DIR = path.join(__dirname, "public", "routes")
 const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")

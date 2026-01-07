@@ -217,6 +217,16 @@ gcc -O2 -Wall -Wextra -std=c11 clos_mult_router.c -o clos_mult_router
 ./clos_mult_router routes.txt
 ```
 
+## Origin
+
+This project started from [this ChatGPT conversation](https://chatgpt.com/c/6954eed4-6548-8333-b818-e0c4b96f31eb).
+
+## References
+
+- [Load Balancing and Scalable Clos-Network Packet Switches](https://digitalcommons.njit.edu/dissertations/1394/) — Doctoral dissertation on packet switch configurations achieving optimal throughput with sequential cell forwarding.
+- [TRIDENT: A Load-Balancing Clos-Network Packet Switch](https://arxiv.org/abs/1907.00736) — Paper on Clos-network switches with queues between input and central stages.
+- [CPP CLOS Solver](https://github.com/dca-io/cpp-clos/tree/9c21865e300c7b074d33e04f2d0102f6826a4a3a) — C++ implementation of a Clos solver (private repo).
+
 ## License
 
 [Add your license here]

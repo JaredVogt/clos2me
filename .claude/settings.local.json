@@ -21,7 +21,13 @@
       "Bash(timeout 60 ./clos_mult_router:*)",
       "Bash(for f in clos-viz/public/routes/stress*.txt)",
       "Bash(do echo -n \"$f: \")",
-      "Bash(timeout 30 ./clos_mult_router:*)"
+      "Bash(timeout 30 ./clos_mult_router:*)",
+      "mcp__linear__create_issue",
+      "Bash(git rev-parse:*)",
+      "mcp__filesystem__list_directory",
+      "Skill(portclaim)",
+      "Bash(~/.claude/skills/portclaim/scripts/portclaim.py:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

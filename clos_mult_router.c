@@ -12,10 +12,12 @@
 // - if any valid assignment exists under this model, it will find one
 // - it also minimizes total "branches" (spines used) as a secondary objective
 //
-// Model (symmetric C(10,10,10)):
-// - Stage 1: 10 ingress blocks, 10 ports each (ports 1..100)
-// - Stage 2: 10 spines
-// - Stage 3: 10 egress blocks, 10 ports each (ports 1..100)
+// Model (symmetric C(N,N,N), default N=10):
+// - Stage 1: N ingress blocks, N ports each (ports 1..N*N)
+// - Stage 2: N spines
+// - Stage 3: N egress blocks, N ports each (ports 1..N*N)
+//
+// Use --size N to configure crossbar size (2-14)
 //
 // Key constraints (route isolation in the sense you mean):
 // 1) Each ingress-block -> spine trunk is owned by at most one input.
@@ -33,15 +35,25 @@
 #include <ctype.h>
 #include <stdint.h>
 
-#define N 10
-#define TOTAL_BLOCKS 10
-#define MAX_PORTS 100
+// Maximum array dimensions (for static allocation)
+#define MAX_N 14
+#define MAX_BLOCKS 14
+#define MAX_PORTS 196
 #define MAX_LINE_LENGTH 1024
+
+// Runtime fabric dimensions (configurable via --size)
+static int fabric_n = 10;          // spines and ports per block
+static int fabric_blocks = 10;     // number of ingress/egress blocks
+static int fabric_ports = 100;     // total ports = fabric_n * fabric_blocks
 
 // --- DESIRED STATE -----------------------------------------------------------
 // The "truth" this app tries to realize in the fabric:
 // desired_owner[out_port] = input_id (0 = disconnected)
 static int desired_owner[MAX_PORTS + 1];
+
+// Helper macros to use runtime dimensions (N, TOTAL_BLOCKS are now runtime values)
+#define N fabric_n
+#define TOTAL_BLOCKS fabric_blocks
 
 // --- PREVIOUS STATE (for stability) -----------------------------------------
 // When --previous-state is provided, we try to preserve existing spine assignments
@@ -56,10 +68,10 @@ static int initial_route_count = 0;      // routes at start of file (from previo
 static bool tracked_initial = false;     // whether we've captured initial state
 
 // --- FABRIC STATE (realized solution) ---------------------------------------
-static int s1_to_s2[TOTAL_BLOCKS][N];    // ingress block -> spine trunk owner (0 free, else input_id)
-static int s2_to_s3[N][TOTAL_BLOCKS];    // spine -> egress block trunk owner (0 free, else input_id)
+static int s1_to_s2[MAX_BLOCKS][MAX_N];    // ingress block -> spine trunk owner (0 free, else input_id)
+static int s2_to_s3[MAX_N][MAX_BLOCKS];    // spine -> egress block trunk owner (0 free, else input_id)
 static int s3_port_owner[MAX_PORTS + 1]; // output port -> input_id (0 free)
-static int s3_port_spine[MAX_PORTS + 1]; // output port -> spine index (0..9), -1 if disconnected
+static int s3_port_spine[MAX_PORTS + 1]; // output port -> spine index (0..N-1), -1 if disconnected
 
 // --- HELPERS ----------------------------------------------------------------
 static inline int get_block(int port) {
@@ -67,7 +79,7 @@ static inline int get_block(int port) {
 }
 
 static inline bool is_valid_port(int p) {
-  return p >= 1 && p <= MAX_PORTS;
+  return p >= 1 && p <= fabric_ports;
 }
 
 static char *trim_in_place(char *s) {
@@ -92,28 +104,28 @@ static void json_write_int_array(FILE *f, const int *arr, int len) {
 
 static void json_write_matrix_s1(FILE *f) {
   fputc('[', f);
-  for (int r = 0; r < TOTAL_BLOCKS; r++) {
+  for (int r = 0; r < fabric_blocks; r++) {
     fputc('[', f);
-    for (int c = 0; c < N; c++) {
+    for (int c = 0; c < fabric_n; c++) {
       fprintf(f, "%d", s1_to_s2[r][c]);
-      if (c + 1 < N) fputc(',', f);
+      if (c + 1 < fabric_n) fputc(',', f);
     }
     fputc(']', f);
-    if (r + 1 < TOTAL_BLOCKS) fputc(',', f);
+    if (r + 1 < fabric_blocks) fputc(',', f);
   }
   fputc(']', f);
 }
 
 static void json_write_matrix_s2(FILE *f) {
   fputc('[', f);
-  for (int r = 0; r < N; r++) {
+  for (int r = 0; r < fabric_n; r++) {
     fputc('[', f);
-    for (int c = 0; c < TOTAL_BLOCKS; c++) {
+    for (int c = 0; c < fabric_blocks; c++) {
       fprintf(f, "%d", s2_to_s3[r][c]);
-      if (c + 1 < TOTAL_BLOCKS) fputc(',', f);
+      if (c + 1 < fabric_blocks) fputc(',', f);
     }
     fputc(']', f);
-    if (r + 1 < N) fputc(',', f);
+    if (r + 1 < fabric_n) fputc(',', f);
   }
   fputc(']', f);
 }
@@ -158,9 +170,9 @@ static bool write_state_json(const char *path) {
 
   fprintf(f, "{");
   fprintf(f, "\"version\":1,");
-  fprintf(f, "\"N\":%d,", N);
-  fprintf(f, "\"TOTAL_BLOCKS\":%d,", TOTAL_BLOCKS);
-  fprintf(f, "\"MAX_PORTS\":%d,", MAX_PORTS);
+  fprintf(f, "\"N\":%d,", fabric_n);
+  fprintf(f, "\"TOTAL_BLOCKS\":%d,", fabric_blocks);
+  fprintf(f, "\"MAX_PORTS\":%d,", fabric_ports);
 
   fprintf(f, "\"s1_to_s2\":");
   json_write_matrix_s1(f);
@@ -171,15 +183,15 @@ static bool write_state_json(const char *path) {
   fprintf(f, ",");
 
   fprintf(f, "\"s3_port_owner\":");
-  json_write_int_array(f, s3_port_owner, MAX_PORTS + 1);
+  json_write_int_array(f, s3_port_owner, fabric_ports + 1);
   fprintf(f, ",");
 
   fprintf(f, "\"s3_port_spine\":");
-  json_write_int_array(f, s3_port_spine, MAX_PORTS + 1);
+  json_write_int_array(f, s3_port_spine, fabric_ports + 1);
   fprintf(f, ",");
 
   fprintf(f, "\"desired_owner\":");
-  json_write_int_array(f, desired_owner, MAX_PORTS + 1);
+  json_write_int_array(f, desired_owner, fabric_ports + 1);
   fprintf(f, ",");
 
   // Legacy stability field
@@ -231,7 +243,7 @@ static bool load_previous_state(const char *path) {
   fclose(f);
 
   // Initialize to -1 (no previous assignment)
-  for (int i = 0; i <= MAX_PORTS; i++) {
+  for (int i = 0; i <= fabric_ports; i++) {
     prev_s3_port_spine[i] = -1;
   }
 
@@ -250,7 +262,7 @@ static bool load_previous_state(const char *path) {
   start++;  // skip '['
 
   int idx = 0;
-  while (idx <= MAX_PORTS && *start) {
+  while (idx <= fabric_ports && *start) {
     // Skip whitespace
     while (*start && (*start == ' ' || *start == '\n' || *start == '\r' || *start == '\t')) start++;
 
@@ -281,10 +293,12 @@ static bool load_previous_state(const char *path) {
 // --- DEBUG / VISUALIZATION --------------------------------------------------
 static void print_heatmap(void) {
   printf("\n--- SPINE-TO-EGRESS UTILIZATION HEATMAP (s2_to_s3) ---\n");
-  printf("       S01 S02 S03 S04 S05 S06 S07 S08 S09 S10\n");
-  for (int e = 0; e < TOTAL_BLOCKS; e++) {
+  printf("       ");
+  for (int s = 0; s < fabric_n; s++) printf("S%02d ", s + 1);
+  printf("\n");
+  for (int e = 0; e < fabric_blocks; e++) {
     printf("Egr %2d: ", e + 1);
-    for (int s = 0; s < N; s++) {
+    for (int s = 0; s < fabric_n; s++) {
       if (s2_to_s3[s][e] != 0) printf("[%02d] ", s2_to_s3[s][e]);
       else printf("[  ] ");
     }
@@ -298,9 +312,9 @@ static void print_port_map_summary(void) {
   int shown = 0;
   int total = 0;
 
-  for (int p = 1; p <= MAX_PORTS; p++) if (s3_port_owner[p] != 0) total++;
+  for (int p = 1; p <= fabric_ports; p++) if (s3_port_owner[p] != 0) total++;
 
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     if (s3_port_owner[p] == 0) continue;
 
     printf("Out %3d -> Input %3d via Spine %2d (EgrBlock %2d)\n",
@@ -329,7 +343,7 @@ static FabricStats compute_fabric_stats(void) {
   int outputs_per_input[MAX_PORTS + 1] = {0};
   uint16_t spines_per_input[MAX_PORTS + 1] = {0};  // bitmask
 
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     int owner = s3_port_owner[p];
     int spine = s3_port_spine[p];
 
@@ -356,7 +370,7 @@ static FabricStats compute_fabric_stats(void) {
 
   // Count removed routes (had previous spine but now disconnected)
   if (have_previous_state) {
-    for (int p = 1; p <= MAX_PORTS; p++) {
+    for (int p = 1; p <= fabric_ports; p++) {
       if (prev_s3_port_spine[p] >= 0 && s3_port_spine[p] < 0) {
         stats.routes_removed++;
       }
@@ -364,7 +378,7 @@ static FabricStats compute_fabric_stats(void) {
   }
 
   // Count multicast metrics
-  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+  for (int in_id = 1; in_id <= fabric_ports; in_id++) {
     if (outputs_per_input[in_id] >= 2) {
       stats.inputs_with_mult++;
     }
@@ -475,7 +489,7 @@ static bool validate_fabric(bool verbose) {
   }
 
   // 2) Stage3 port selections must match s2_to_s3
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     int owner = s3_port_owner[p];
     int spine = s3_port_spine[p];
 
@@ -501,7 +515,7 @@ static bool validate_fabric(bool verbose) {
   }
 
   // 3) Fabric should realize desired_owner exactly
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     if (desired_owner[p] != s3_port_owner[p]) {
       if (verbose) printf("VALIDATION FAIL: desired_owner[%d]=%d but s3_port_owner[%d]=%d\n",
         p, desired_owner[p], p, s3_port_owner[p]);
@@ -536,8 +550,8 @@ typedef struct {
 
 typedef struct {
   // candidate solution buffers
-  int s1[TOTAL_BLOCKS][N];
-  int s2[N][TOTAL_BLOCKS];
+  int s1[MAX_BLOCKS][MAX_N];
+  int s2[MAX_N][MAX_BLOCKS];
   int s3_owner[MAX_PORTS + 1];
   int s3_spine[MAX_PORTS + 1];
 } FabricSolution;
@@ -545,9 +559,9 @@ typedef struct {
 // Builds demands from desired_owner and returns count
 static int build_demands(Demand *demands, int *active_inputs, int *active_count, uint16_t *need_blocks_mask) {
   // need_blocks_mask[input_id] is a bitmask of egress blocks required by that input
-  for (int i = 0; i <= MAX_PORTS; i++) need_blocks_mask[i] = 0;
+  for (int i = 0; i <= fabric_ports; i++) need_blocks_mask[i] = 0;
 
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     int in_id = desired_owner[p];
     if (in_id == 0) continue;
     int e = get_block(p);
@@ -555,7 +569,7 @@ static int build_demands(Demand *demands, int *active_inputs, int *active_count,
   }
 
   int a = 0;
-  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+  for (int in_id = 1; in_id <= fabric_ports; in_id++) {
     if (need_blocks_mask[in_id] != 0) active_inputs[a++] = in_id;
   }
   *active_count = a;
@@ -577,10 +591,10 @@ static int build_demands(Demand *demands, int *active_inputs, int *active_count,
 
 static void print_unsat_reason(const uint16_t *need_blocks_mask) {
   // Count distinct inputs per egress block and per ingress block
-  int inputs_per_egress[TOTAL_BLOCKS] = {0};
-  int inputs_per_ingress[TOTAL_BLOCKS] = {0};
+  int inputs_per_egress[MAX_BLOCKS] = {0};
+  int inputs_per_ingress[MAX_BLOCKS] = {0};
 
-  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+  for (int in_id = 1; in_id <= fabric_ports; in_id++) {
     if (need_blocks_mask[in_id] == 0) continue;
     inputs_per_ingress[get_block(in_id)]++;
 
@@ -604,23 +618,23 @@ static void print_unsat_reason(const uint16_t *need_blocks_mask) {
 
 static bool quick_capacity_check(const uint16_t *need_blocks_mask) {
   // Egress capacity: each egress block has N trunks (one per spine)
-  for (int e = 0; e < TOTAL_BLOCKS; e++) {
+  for (int e = 0; e < fabric_blocks; e++) {
     int count = 0;
-    for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+    for (int in_id = 1; in_id <= fabric_ports; in_id++) {
       if (need_blocks_mask[in_id] & (1u << e)) count++;
     }
-    if (count > N) return false;
+    if (count > fabric_n) return false;
   }
 
   // Ingress capacity: each ingress block has N spines; each active input needs at least 1 spine
   // (In this model, an input cannot share a spine with another input from the same ingress block.)
-  for (int i = 0; i < TOTAL_BLOCKS; i++) {
+  for (int i = 0; i < fabric_blocks; i++) {
     int count = 0;
-    for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+    for (int in_id = 1; in_id <= fabric_ports; in_id++) {
       if (need_blocks_mask[in_id] == 0) continue;
       if (get_block(in_id) == i) count++;
     }
-    if (count > N) return false;
+    if (count > fabric_n) return false;
   }
 
   return true;
@@ -637,8 +651,8 @@ typedef struct {
   // Partial ownership constraints:
   // tmp_s2[spine][egress_block] = input_id (0 free)
   // tmp_s1_owner[ingress_block][spine] = input_id (0 free)
-  int tmp_s2[N][TOTAL_BLOCKS];
-  int tmp_s1_owner[TOTAL_BLOCKS][N];
+  int tmp_s2[MAX_N][MAX_BLOCKS];
+  int tmp_s1_owner[MAX_BLOCKS][MAX_N];
 
   // Spine usage per input (for pass 1 ordering - prefer reusing spines)
   uint16_t used_spines_mask[MAX_PORTS + 1];
@@ -649,7 +663,7 @@ typedef struct {
 
   // Stability: previous spine for each (input, egress_block)
   // -1 = new route (no previous), 0-9 = previous spine assignment
-  int prev_spine_for[MAX_PORTS + 1][TOTAL_BLOCKS];
+  int prev_spine_for[MAX_PORTS + 1][MAX_BLOCKS];
 
   // Stability cost tracking (branch cost removed for speed - see WOL-598)
   int stability_cost;       // current count of spine changes from previous state
@@ -662,7 +676,7 @@ static int domain_size(const SolverCtx *ctx, const Demand *d) {
   int egress = d->egress_block;
 
   int size = 0;
-  for (int s = 0; s < N; s++) {
+  for (int s = 0; s < fabric_n; s++) {
     if (ctx->tmp_s2[s][egress] != 0 && ctx->tmp_s2[s][egress] != in_id) continue;
     int owner = ctx->tmp_s1_owner[ingress][s];
     if (owner != 0 && owner != in_id) continue;
@@ -725,7 +739,7 @@ static bool backtrack(SolverCtx *ctx, int depth) {
   int prev_spine = ctx->prev_spine_for[in_id][egress];
 
   for (int pass = 0; pass < 3; pass++) {
-    for (int s = 0; s < N; s++) {
+    for (int s = 0; s < fabric_n; s++) {
       bool is_prev = (prev_spine >= 0 && s == prev_spine);
       bool already_used = (used & (1u << s)) != 0;
 
@@ -790,7 +804,7 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   // Trivial: no routes
   if (num_demands == 0) {
     memset(out_solution, 0, sizeof(*out_solution));
-    for (int p = 1; p <= MAX_PORTS; p++) out_solution->s3_spine[p] = -1;
+    for (int p = 1; p <= fabric_ports; p++) out_solution->s3_spine[p] = -1;
     *out_best_cost = 0;
     last_stability_cost = 0;
     return true;
@@ -820,15 +834,15 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   ctx.best_stability_cost = 999999;
 
   // Build prev_spine_for map from previous state
-  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
-    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+  for (int in_id = 0; in_id <= fabric_ports; in_id++) {
+    for (int e = 0; e < fabric_blocks; e++) {
       ctx.prev_spine_for[in_id][e] = -1;
     }
   }
 
   if (have_previous_state) {
     // For each output port that had a spine assignment AND is still desired
-    for (int p = 1; p <= MAX_PORTS; p++) {
+    for (int p = 1; p <= fabric_ports; p++) {
       int in_id = desired_owner[p];
       int prev_spine = prev_s3_port_spine[p];
       if (in_id > 0 && prev_spine >= 0) {
@@ -860,12 +874,12 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   // Rebuild solution from best_assignment (clean rebuild avoids any subtle solver-state coupling)
   FabricSolution sol;
   memset(&sol, 0, sizeof(sol));
-  for (int p = 1; p <= MAX_PORTS; p++) sol.s3_spine[p] = -1;
+  for (int p = 1; p <= fabric_ports; p++) sol.s3_spine[p] = -1;
 
   // Map for quick Stage3 spine lookup: spine_for[input_id][egress_block]
-  static int spine_for[MAX_PORTS + 1][TOTAL_BLOCKS];
-  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
-    for (int e = 0; e < TOTAL_BLOCKS; e++) spine_for[in_id][e] = -1;
+  static int spine_for[MAX_PORTS + 1][MAX_BLOCKS];
+  for (int in_id = 0; in_id <= fabric_ports; in_id++) {
+    for (int e = 0; e < fabric_blocks; e++) spine_for[in_id][e] = -1;
   }
 
   // Apply each (input, egress) demand to trunks
@@ -880,7 +894,7 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   }
 
   // Apply Stage3 selections exactly as desired_owner
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     int in_id = desired_owner[p];
     if (in_id == 0) {
       sol.s3_owner[p] = 0;
@@ -917,7 +931,7 @@ static void commit_solution(const FabricSolution *sol) {
 static bool repack_fabric_and_commit(void) {
   // Track initial route count (first time only, before any changes)
   if (!tracked_initial && have_previous_state) {
-    for (int p = 1; p <= MAX_PORTS; p++) {
+    for (int p = 1; p <= fabric_ports; p++) {
       if (prev_s3_port_spine[p] >= 0) initial_route_count++;
     }
     tracked_initial = true;
@@ -925,7 +939,7 @@ static bool repack_fabric_and_commit(void) {
 
   // Count routes before this solve (for per-solve logging)
   int routes_before = 0;
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     if (prev_s3_port_spine[p] >= 0) routes_before++;
   }
 
@@ -1035,7 +1049,7 @@ static bool apply_clear_request(int input_id) {
   PortEdit edits[MAX_PORTS];
   int edit_count = 0;
 
-  for (int p = 1; p <= MAX_PORTS; p++) {
+  for (int p = 1; p <= fabric_ports; p++) {
     if (desired_owner[p] == input_id) {
       edits[edit_count++] = (PortEdit){ .port = p, .prev_owner = input_id };
     }
@@ -1134,12 +1148,6 @@ static void process_file(const char *filename) {
 }
 
 int main(int argc, char *argv[]) {
-  memset(desired_owner, 0, sizeof(desired_owner));
-  memset(s1_to_s2, 0, sizeof(s1_to_s2));
-  memset(s2_to_s3, 0, sizeof(s2_to_s3));
-  memset(s3_port_owner, 0, sizeof(s3_port_owner));
-  for (int p = 1; p <= MAX_PORTS; p++) s3_port_spine[p] = -1;
-
   const char *routes_path = NULL;
   const char *json_path = NULL;
   const char *prev_state_path = NULL;
@@ -1157,15 +1165,34 @@ int main(int argc, char *argv[]) {
       strict_stability = true;
       continue;
     }
+    if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
+      int size = atoi(argv[++i]);
+      if (size < 2 || size > 14) {
+        fprintf(stderr, "Error: --size must be between 2 and 14 (got %d)\n", size);
+        return 1;
+      }
+      fabric_n = size;
+      fabric_blocks = size;
+      fabric_ports = size * size;
+      continue;
+    }
     if (argv[i][0] != '-') {
       routes_path = argv[i];
     }
   }
 
   if (!routes_path) {
-    printf("Usage: %s <routes.txt> [--json state.json] [--previous-state prev.json] [--strict-stability]\n", argv[0]);
+    printf("Usage: %s <routes.txt> [--json state.json] [--previous-state prev.json] [--strict-stability] [--size N]\n", argv[0]);
+    printf("  --size N: Set crossbar size (4-10, default 10)\n");
     return 1;
   }
+
+  // Initialize arrays with runtime fabric size
+  memset(desired_owner, 0, sizeof(desired_owner));
+  memset(s1_to_s2, 0, sizeof(s1_to_s2));
+  memset(s2_to_s3, 0, sizeof(s2_to_s3));
+  memset(s3_port_owner, 0, sizeof(s3_port_owner));
+  for (int p = 1; p <= fabric_ports; p++) s3_port_spine[p] = -1;
 
   // Load previous state if provided
   if (prev_state_path) {

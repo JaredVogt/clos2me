@@ -1,0 +1,13 @@
+service: clos2me
+framework: null
+process_name: clos2me
+display_name: Clos2Me
+start_cmd: cd ~/projects/clos2me && npm run dev
+path: /Users/jaredvogt/projects/clos2me
+ports:
+  dev:
+    port: 3560
+    reserved_range: 1
+  api:
+    port: 3561
+    reserved_range: 1
