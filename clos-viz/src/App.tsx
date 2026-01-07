@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react"
-import { solverResponseSchema, type FabricState, type LogEntry, type LogLevel } from "./schema"
+import { fabricStateSchema, solverResponseSchema, type FabricState, type LogEntry, type LogLevel } from "./schema"
 import { deriveInputs } from "./derive"
 import { FabricView } from "./FabricView"
 import { LogPanel } from "./LogPanel"
 import "./index.css"
+
+type LockMap = Record<number, Record<number, number>>
+type LockPayload = { input: number; egressBlock: number; spine: number }
 
 export default function App() {
   const [state, setState] = useState<FabricState | null>(null)
@@ -34,11 +37,15 @@ export default function App() {
   const [modifiedFile, setModifiedFile] = useState<string | null>(null)
   const [lastRoutedInput, setLastRoutedInput] = useState<number | null>(null)
 
+  // Locks: input -> egressBlock -> spine
+  const [locksByInput, setLocksByInput] = useState<LockMap>({})
+
   // Stability mode
   const [strictStability, setStrictStability] = useState(false)
 
-  // Crossbar size (4-10, default 10)
+  // Crossbar size (default 10)
   const [crossbarSize, setCrossbarSize] = useState(10)
+  const [sizeInput, setSizeInput] = useState("10")
 
   // Relay mode - toggle with 'c' key
   const [relayMode, setRelayMode] = useState(false)
@@ -50,12 +57,40 @@ export default function App() {
   const [logPanelWidth, setLogPanelWidth] = useState(400)
   const [isResizing, setIsResizing] = useState(false)
 
+  // Hover highlight state (for lock hover)
+  const [hoveredInput, setHoveredInput] = useState<number | null>(null)
+  const [hoveredFromLock, setHoveredFromLock] = useState(false)
+
   const inputs = useMemo(() => (state ? deriveInputs(state) : []), [state])
 
   // Helper to strip size suffix from filename for display
   // e.g., "stress_stability.10.txt" -> "stress_stability"
   const displayName = useCallback((filename: string) => {
     return filename.replace(/\.\d+\.txt$/, "")
+  }, [])
+
+  const buildRoutesFromState = useCallback((currentState: FabricState | null) => {
+    const nextRoutes: Record<number, number[]> = {}
+    if (!currentState) return nextRoutes
+    for (let port = 1; port <= currentState.MAX_PORTS; port++) {
+      const owner = currentState.s3_port_owner[port]
+      if (owner && owner > 0) {
+        if (!nextRoutes[owner]) nextRoutes[owner] = []
+        nextRoutes[owner].push(port)
+      }
+    }
+    return nextRoutes
+  }, [])
+
+  const buildLocksPayload = useCallback((locks: LockMap): LockPayload[] => {
+    const payload: LockPayload[] = []
+    for (const [inputId, blocks] of Object.entries(locks)) {
+      const input = Number(inputId)
+      for (const [egressBlock, spine] of Object.entries(blocks)) {
+        payload.push({ input, egressBlock: Number(egressBlock), spine })
+      }
+    }
+    return payload
   }, [])
 
   // Debug: log state changes
@@ -69,18 +104,45 @@ export default function App() {
       setRoutes({})
       return
     }
-    // Build routes map from s3_port_owner
-    const newRoutes: Record<number, number[]> = {}
+    setRoutes(buildRoutesFromState(state))
+  }, [state, buildRoutesFromState])
+
+  // Prune stale locks when state changes
+  useEffect(() => {
+    if (!state) {
+      if (Object.keys(locksByInput).length > 0) setLocksByInput({})
+      return
+    }
+
+    const ownedBlocks: Record<number, Set<number>> = {}
     for (let port = 1; port <= state.MAX_PORTS; port++) {
       const owner = state.s3_port_owner[port]
-      if (owner && owner > 0) {
-        if (!newRoutes[owner]) newRoutes[owner] = []
-        newRoutes[owner].push(port)
+      if (!owner || owner <= 0) continue
+      const block = Math.floor((port - 1) / state.N)
+      if (!ownedBlocks[owner]) ownedBlocks[owner] = new Set()
+      ownedBlocks[owner].add(block)
+    }
+
+    const nextLocks: LockMap = {}
+    for (const [inputId, blocks] of Object.entries(locksByInput)) {
+      const input = Number(inputId)
+      const owned = ownedBlocks[input]
+      if (!owned) continue
+      for (const [egressBlock, spine] of Object.entries(blocks)) {
+        const e = Number(egressBlock)
+        if (owned.has(e)) {
+          if (!nextLocks[input]) nextLocks[input] = {}
+          nextLocks[input][e] = spine
+        }
       }
     }
-    setRoutes(newRoutes)
-  }, [state])
 
+    const prevJson = JSON.stringify(locksByInput)
+    const nextJson = JSON.stringify(nextLocks)
+    if (prevJson !== nextJson) {
+      setLocksByInput(nextLocks)
+    }
+  }, [state, locksByInput])
   // Keyboard shortcuts: ESC cancels route, C toggles relay mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -136,15 +198,26 @@ export default function App() {
     console.log(`[debug] handleRouteClick: portId=${portId}, isInput=${isInput}, shiftKey=${event.shiftKey}`)
     console.log(`[debug] Current state: pendingInput=${pendingInput}, pendingOutputs=[${pendingOutputs.join(',')}]`)
 
-    if (isInput) {
-      // Check for Ctrl+click (Windows/Linux) or Cmd+click (Mac) to DELETE
-      if (event.ctrlKey || event.metaKey) {
-        if (routes[portId]) {
-          console.log(`[debug] Ctrl/Cmd-click: deleting route for input ${portId}`)
-          await deleteRoute(portId)
+    // Cmd/Ctrl-click toggles locks
+    if (event.metaKey || event.ctrlKey) {
+      if (isInput) {
+        if (event.shiftKey) {
+          if (routes[portId]) {
+            console.log(`[debug] Cmd/Ctrl+Shift-click: deleting route for input ${portId}`)
+            await deleteRoute(portId)
+          }
+        } else {
+          console.log(`[debug] Cmd/Ctrl-click: toggling lock for input ${portId}`)
+          await toggleInputLock(portId)
         }
-        return
+      } else {
+        console.log(`[debug] Cmd/Ctrl-click: toggling lock for output ${portId}`)
+        await toggleOutputLock(portId)
       }
+      return
+    }
+
+    if (isInput) {
       // Click on input port - select it for routing
       setPendingInput(portId)
       setPendingOutputs([])
@@ -184,16 +257,7 @@ export default function App() {
 
     // Derive current routes directly from state to avoid race conditions
     // (the `routes` state may be stale if useEffect hasn't run yet)
-    const currentRoutes: Record<number, number[]> = {}
-    if (state) {
-      for (let port = 1; port <= state.MAX_PORTS; port++) {
-        const owner = state.s3_port_owner[port]
-        if (owner && owner > 0) {
-          if (!currentRoutes[owner]) currentRoutes[owner] = []
-          currentRoutes[owner].push(port)
-        }
-      }
-    }
+    const currentRoutes = buildRoutesFromState(state)
 
     // Build new routes map
     const newRoutes = { ...currentRoutes }
@@ -221,12 +285,13 @@ export default function App() {
       const res = await fetch("/api/process-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: newRoutes, strictStability })
+        body: JSON.stringify({ routes: newRoutes, strictStability, locks: buildLocksPayload(locksByInput) })
       })
 
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error || "Failed to process routes")
+        const detail = err.lockConflicts ? ` (${err.lockConflicts.length} lock conflict${err.lockConflicts.length === 1 ? '' : 's'})` : ""
+        throw new Error((err.error || "Failed to process routes") + detail)
       }
 
       const json = await res.json()
@@ -271,12 +336,13 @@ export default function App() {
       const res = await fetch("/api/process-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: newRoutes, strictStability })
+        body: JSON.stringify({ routes: newRoutes, strictStability, locks: buildLocksPayload(locksByInput) })
       })
 
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error || "Failed to delete route")
+        const detail = err.lockConflicts ? ` (${err.lockConflicts.length} lock conflict${err.lockConflicts.length === 1 ? '' : 's'})` : ""
+        throw new Error((err.error || "Failed to delete route") + detail)
       }
 
       const json = await res.json()
@@ -316,7 +382,10 @@ export default function App() {
     try {
       const res = await fetch("/api/size")
       const data = await res.json()
-      if (data.size) setCrossbarSize(data.size)
+      if (data.size) {
+        setCrossbarSize(data.size)
+        setSizeInput(String(data.size))
+      }
     } catch (e) {
       console.error("Failed to fetch crossbar size:", e)
     }
@@ -339,18 +408,35 @@ export default function App() {
       }
 
       setCrossbarSize(newSize)
+      setSizeInput(String(newSize))
       // Clear state when size changes - user should reload a route file
       setState(null)
       setRoutes({})
       setSelectedInput(null)
       setSelectedRoute(null)
       setModifiedFile(null)
+      setLocksByInput({})
       setSolverLog([])
     } catch (e) {
+      setSizeInput(String(crossbarSize))
       setError(e instanceof Error ? e.message : "Failed to set size")
     } finally {
       setLoading(false)
     }
+  }
+
+  async function commitSizeInput(nextValue?: string) {
+    const raw = (nextValue ?? sizeInput).trim()
+    const parsed = parseInt(raw, 10)
+    if (!Number.isFinite(parsed) || parsed < 2) {
+      setSizeInput(String(crossbarSize))
+      return
+    }
+    if (parsed === crossbarSize) {
+      setSizeInput(String(crossbarSize))
+      return
+    }
+    await handleSizeChange(parsed)
   }
 
   async function fetchRouteFiles(size: number = crossbarSize) {
@@ -368,6 +454,7 @@ export default function App() {
     setLoading(true)
     setSelectedRoute(filename)
     setModifiedFile(null) // Clear modified state when loading a new file
+    setLocksByInput({})
 
     // Extract size from filename (e.g., "test.8.txt" -> 8)
     const sizeMatch = filename.match(/\.(\d+)\.txt$/)
@@ -376,6 +463,7 @@ export default function App() {
     // Update crossbar size to match file
     if (fileSize !== crossbarSize) {
       setCrossbarSize(fileSize)
+      setSizeInput(String(fileSize))
     }
 
     try {
@@ -584,6 +672,104 @@ export default function App() {
     }
   }, [renameFile])
 
+  async function applyLocksUpdate(nextLocks: LockMap, nextRoutes?: Record<number, number[]>) {
+    if (!state) return
+    setError(null)
+    setLoading(true)
+    const previousLocks = locksByInput
+    setLocksByInput(nextLocks)
+
+    const routesPayload = nextRoutes || buildRoutesFromState(state)
+    const locksPayload = buildLocksPayload(nextLocks)
+
+    try {
+      const res = await fetch("/api/process-routes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ routes: routesPayload, strictStability, locks: locksPayload })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        const detail = err.lockConflicts ? ` (${err.lockConflicts.length} lock conflict${err.lockConflicts.length === 1 ? '' : 's'})` : ""
+        throw new Error((err.error || "Failed to apply locks") + detail)
+      }
+
+      const json = await res.json()
+      const parsed = solverResponseSchema.parse(json)
+      setState(parsed)
+
+      if (parsed.solverLog) {
+        setSolverLog(prev => persistLog ? [...prev, ...parsed.solverLog] : parsed.solverLog)
+      }
+
+      if (selectedRoute) {
+        setModifiedFile(selectedRoute)
+      }
+    } catch (e) {
+      setLocksByInput(previousLocks)
+      setError(e instanceof Error ? e.message : "Failed to apply locks")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function toggleInputLock(inputId: number) {
+    if (!state) return
+    const nextLocks: LockMap = { ...locksByInput }
+
+    const outputs = routes[inputId] || buildRoutesFromState(state)[inputId] || []
+    if (outputs.length === 0) return
+
+    const blocks: Record<number, number> = {}
+    for (const out of outputs) {
+      const spine = state.s3_port_spine[out]
+      if (spine === undefined || spine < 0) continue
+      const egressBlock = Math.floor((out - 1) / state.N)
+      blocks[egressBlock] = spine
+    }
+
+    const blockEntries = Object.entries(blocks)
+    if (blockEntries.length === 0) return
+
+    const existing = nextLocks[inputId] || {}
+    const fullyLocked = blockEntries.every(([blockKey, spine]) => existing[Number(blockKey)] === spine)
+
+    if (fullyLocked) {
+      delete nextLocks[inputId]
+    } else {
+      nextLocks[inputId] = blocks
+    }
+
+    await applyLocksUpdate(nextLocks)
+  }
+
+  async function toggleOutputLock(portId: number) {
+    if (!state) return
+    const owner = state.s3_port_owner[portId]
+    const spine = state.s3_port_spine[portId]
+    if (!owner || owner <= 0 || spine === undefined || spine < 0) return
+
+    const egressBlock = Math.floor((portId - 1) / state.N)
+    const nextLocks: LockMap = { ...locksByInput }
+    const current = nextLocks[owner] ? { ...nextLocks[owner] } : {}
+
+    if (current[egressBlock] === spine) {
+      delete current[egressBlock]
+      if (Object.keys(current).length === 0) {
+        delete nextLocks[owner]
+      } else {
+        nextLocks[owner] = current
+      }
+      await applyLocksUpdate(nextLocks)
+      return
+    }
+
+    current[egressBlock] = spine
+    nextLocks[owner] = current
+    await applyLocksUpdate(nextLocks)
+  }
+
   function onJsonFile(file: File) {
     setError(null)
     file.text().then(text => {
@@ -605,6 +791,29 @@ export default function App() {
     return inputs.filter(i => String(i.inputId).includes(q))
   }, [inputs, filter])
 
+  const lockList = useMemo(() => {
+    const list: Array<{ input: number; egressBlock: number; spine: number }> = []
+    for (const [inputId, blocks] of Object.entries(locksByInput)) {
+      const input = Number(inputId)
+      for (const [egressBlock, spine] of Object.entries(blocks)) {
+        list.push({ input, egressBlock: Number(egressBlock), spine })
+      }
+    }
+    return list.sort((a, b) => a.input - b.input || a.egressBlock - b.egressBlock)
+  }, [locksByInput])
+
+  async function clearAllLocks() {
+    await applyLocksUpdate({})
+  }
+
+  const highlightInput = hoveredInput ?? selectedInput
+  const highlightMode = hoveredInput && hoveredFromLock ? 'locked' : 'normal'
+
+  const handleHoverInput = useCallback((inputId: number | null, fromLock: boolean) => {
+    setHoveredInput(inputId)
+    setHoveredFromLock(fromLock)
+  }, [])
+
   return (
     <div className="app">
       <header className="topbar">
@@ -617,15 +826,26 @@ export default function App() {
         <div className="sizeSelector">
           <label>
             Size:
-            <select
-              value={crossbarSize}
-              onChange={e => handleSizeChange(parseInt(e.target.value, 10))}
+            <input
+              type="number"
+              min={2}
+              step={1}
+              list="size-options"
+              value={sizeInput}
+              onChange={e => setSizeInput(e.target.value)}
+              onBlur={() => commitSizeInput()}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur()
+                }
+              }}
               disabled={loading}
-            >
+            />
+            <datalist id="size-options">
               {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
                 <option key={n} value={n}>{n}×{n}</option>
               ))}
-            </select>
+            </datalist>
           </label>
         </div>
         <label className="stabilityToggle">
@@ -834,6 +1054,33 @@ export default function App() {
             )}
           </div>
 
+          {/* Locks Section */}
+          <div className="panel">
+            <div className="panelTitle">Locks ({lockList.length})</div>
+            {lockList.length > 0 && (
+              <button
+                className="saveBtn fullWidth"
+                onClick={clearAllLocks}
+                disabled={loading}
+              >
+                Clear All Locks
+              </button>
+            )}
+            <div className="list">
+              {lockList.length === 0 && <div className="hint">No locks</div>}
+              {lockList.map((l, idx) => (
+                <div key={`${l.input}-${l.egressBlock}-${l.spine}-${idx}`} className="row">
+                  <div className="rowMain">
+                    <div className="rowId">In {l.input}</div>
+                    <div className="rowMeta">
+                      Egr {l.egressBlock + 1} · Spine {l.spine + 1}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Active Inputs Section */}
           <div className="panel">
             <div className="panelTitle">Active Inputs ({inputs.length})</div>
@@ -870,7 +1117,11 @@ export default function App() {
             <FabricView
               state={state}
               selectedInput={selectedInput}
+              highlightInput={highlightInput}
+              highlightMode={highlightMode}
+              locksByInput={locksByInput}
               onSelectInput={id => setSelectedInput(id)}
+              onHoverInput={handleHoverInput}
               onRouteClick={handleRouteClick}
               pendingInput={pendingInput}
               pendingOutputs={pendingOutputs}

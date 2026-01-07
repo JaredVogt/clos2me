@@ -12,8 +12,12 @@ type Props = {
   inLabels: string[]
   outLabels: string[]
   paths: Path[]
-  selectedInput: number | null
+  highlightInput?: number | null
+  highlightMode?: 'normal' | 'locked'
   onSelectInput: (id: number | null) => void
+  onHoverInput?: (id: number | null, fromLock: boolean) => void
+  inLockStates?: Array<'locked' | 'related' | 'none'>
+  outLockStates?: Array<'locked' | 'related' | 'none'>
   // Route creation props
   onRouteClick?: (label: string, isInput: boolean, event: React.MouseEvent) => void
   pendingInput?: number | null
@@ -28,7 +32,21 @@ export type CrossbarRef = {
 }
 
 export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
-  { title, inLabels, outLabels, paths, selectedInput, onSelectInput, onRouteClick, pendingInput, pendingOutputs = [] },
+  {
+    title,
+    inLabels,
+    outLabels,
+    paths,
+    highlightInput = null,
+    highlightMode = 'normal',
+    onSelectInput,
+    onHoverInput,
+    onRouteClick,
+    inLockStates = [],
+    outLockStates = [],
+    pendingInput,
+    pendingOutputs = []
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -92,15 +110,18 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
         {/* IN ports */}
         <div className="crossbarPorts inPorts">
           {inLabels.map((label, i) => {
-            const isActive = paths.some(p => p.inIdx === i && p.owner === selectedInput)
+            const isActive = paths.some(p => p.inIdx === i && p.owner === highlightInput)
             const isUsed = paths.some(p => p.inIdx === i)
             const isPending = pendingInput !== null && pendingInput === parsePortId(label)
+            const lockState = inLockStates[i] ?? 'none'
+            const isLocked = lockState === 'locked'
+            const isRelated = lockState === 'related'
 
             return (
               <div
                 key={i}
                 ref={el => { inPortRefs.current[i] = el }}
-                className={`crossbarPort ${isPending ? "pending" : isActive ? "active" : isUsed ? "used" : ""}`}
+                className={`crossbarPort ${isPending ? "pending" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
                 onClick={(e) => {
                   if (e.altKey) {
                     // Option-click: highlight/select route
@@ -113,9 +134,9 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 }}
                 onMouseEnter={() => {
                   const path = paths.find(p => p.inIdx === i)
-                  if (path) onSelectInput(path.owner)
+                  if (path && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
                 }}
-                onMouseLeave={() => onSelectInput(null)}
+                onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
                 title={label}
               >
                 <span className="portDot" />
@@ -133,7 +154,8 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
               const to = positions.outPorts[p.outIdx]
               if (!from || !to) return null
 
-              const isActive = p.owner === selectedInput
+              const isActive = p.owner === highlightInput
+              const isLockedActive = isActive && highlightMode === 'locked'
 
               // Draw Bezier curve
               const midX = (from.x + to.x) / 2
@@ -142,7 +164,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 <path
                   key={idx}
                   d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
-                  className={`crossbarPath ${isActive ? "active" : ""}`}
+                  className={`crossbarPath ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
                   onClick={() => onSelectInput(p.owner)}
                 />
               )
@@ -153,15 +175,18 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
         {/* OUT ports */}
         <div className="crossbarPorts outPorts">
           {outLabels.map((label, i) => {
-            const isActive = paths.some(p => p.outIdx === i && p.owner === selectedInput)
+            const isActive = paths.some(p => p.outIdx === i && p.owner === highlightInput)
             const isUsed = paths.some(p => p.outIdx === i)
             const isPendingOut = pendingOutputs.includes(parsePortId(label))
+            const lockState = outLockStates[i] ?? 'none'
+            const isLocked = lockState === 'locked'
+            const isRelated = lockState === 'related'
 
             return (
               <div
                 key={i}
                 ref={el => { outPortRefs.current[i] = el }}
-                className={`crossbarPort ${isPendingOut ? "pendingOut" : isActive ? "active" : isUsed ? "used" : ""}`}
+                className={`crossbarPort ${isPendingOut ? "pendingOut" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
                 onClick={(e) => {
                   console.log(`[debug] OUT port click: label=${label}, altKey=${e.altKey}, shiftKey=${e.shiftKey}, onRouteClick=${!!onRouteClick}`)
                   if (e.altKey) {
@@ -175,9 +200,9 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 }}
                 onMouseEnter={() => {
                   const path = paths.find(p => p.outIdx === i)
-                  if (path) onSelectInput(path.owner)
+                  if (path && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
                 }}
-                onMouseLeave={() => onSelectInput(null)}
+                onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
                 title={label}
               >
                 <span className="portText">{label}</span>

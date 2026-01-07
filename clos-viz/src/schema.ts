@@ -11,7 +11,20 @@ export const fabricStateSchema = z.object({
   s2_to_s3: z.array(z.array(int)),
   s3_port_owner: z.array(int),
   s3_port_spine: z.array(int),
-  desired_owner: z.array(int).optional()
+  desired_owner: z.array(int).optional(),
+  lock_conflicts: z.array(z.object({
+    input: int,
+    egress_block: int,
+    spine: int,
+    reason: z.string()
+  })).optional(),
+  solve_ms: z.number().optional(),
+  solve_total_ms: z.number().optional(),
+  repack_count: int.optional(),
+  reroutes_demands: int.optional(),
+  reroutes_outputs: int.optional(),
+  locked_demands: int.optional(),
+  locked_outputs: int.optional()
 })
 
 export type FabricState = z.infer<typeof fabricStateSchema>

@@ -12,3 +12,5 @@ clos-viz/state.json
 
 # Port config local override
 .ports.local.yaml
+.env
+.env.local

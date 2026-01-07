@@ -65,7 +65,8 @@
   align-items: center;
   gap: 6px;
 }
-.sizeSelector select {
+.sizeSelector select,
+.sizeSelector input {
   padding: 4px 8px;
   border: 1px solid #d0d0d0;
   border-radius: 4px;
@@ -73,8 +74,10 @@
   background: #fff;
   cursor: pointer;
 }
-.sizeSelector select:hover { background: #f8f8f8; }
-.sizeSelector select:disabled { opacity: 0.6; cursor: not-allowed; }
+.sizeSelector select:hover,
+.sizeSelector input:hover { background: #f8f8f8; }
+.sizeSelector select:disabled,
+.sizeSelector input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .error {
   background: #fee;
@@ -508,6 +511,23 @@
   font-weight: 600;
 }
 
+.crossbarPort.locked {
+  background: #ffd6d6;
+  font-weight: 600;
+}
+
+.crossbarPort.locked:hover {
+  background: #ffd6d6;
+}
+
+.crossbarPort.related {
+  background: #ffe9ef;
+}
+
+.crossbarPort.related:hover {
+  background: #ffe9ef;
+}
+
 .crossbarPort.muted {
   opacity: 0.3;
 }
@@ -546,6 +566,14 @@
   background: #2a2;
 }
 
+.crossbarPort.locked .portDot {
+  background: #c00020;
+}
+
+.crossbarPort.related .portDot {
+  background: #e38aa8;
+}
+
 .portText {
   font-family: monospace;
   color: #666;
@@ -553,6 +581,14 @@
 
 .crossbarPort.active .portText {
   color: #1a1a1a;
+}
+
+.crossbarPort.locked .portText {
+  color: #7a0b1f;
+}
+
+.crossbarPort.related .portText {
+  color: #8a4a5a;
 }
 
 /* SVG paths inside crossbar */
@@ -575,6 +611,11 @@
 .crossbarPath.active {
   stroke: #2a2;
   stroke-width: 2;
+}
+
+.crossbarPath.locked {
+  stroke: #c00020;
+  stroke-width: 2.5;
 }
 
 .crossbarPath.muted {
@@ -601,6 +642,11 @@
 .interCable.active {
   stroke: #2a2;
   stroke-width: 2.5;
+}
+
+.interCable.locked {
+  stroke: #c00020;
+  stroke-width: 2.8;
 }
 
 .interCable.muted {

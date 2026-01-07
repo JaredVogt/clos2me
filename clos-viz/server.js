@@ -7,18 +7,27 @@ import { execSync } from "child_process"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
+import dotenv from "dotenv"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = process.env.PORT || 4121
+
+// Load .env from repo root and local clos-viz (local overrides root)
+dotenv.config({ path: path.join(__dirname, "..", ".env") })
+dotenv.config({ path: path.join(__dirname, ".env"), override: true })
+
+const rawPort = process.env.PORT || process.env.API_PORT
+const parsedPort = rawPort ? parseInt(rawPort, 10) : NaN
+const PORT = Number.isFinite(parsedPort) ? parsedPort : 4121
 
 const ROUTES_DIR = path.join(__dirname, "public", "routes")
 const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
 
 // Cache last fabric state for stability preservation
 let lastState = null
+let lastLocks = []
 
 // Current crossbar size (default 10)
 let currentSize = 10
@@ -48,6 +57,8 @@ function parseRouterLog(stdout, state = {}) {
     // Summary level entries
     if (line.includes('REPACK OK:')) {
       entry = { level: 'summary', type: 'success', message: line.trim() }
+    } else if (line.includes('STATS:')) {
+      entry = { level: 'summary', type: 'info', message: line.trim() }
     } else if (line.includes('FAIL:')) {
       entry = { level: 'summary', type: 'error', message: line.trim() }
     }
@@ -323,7 +334,7 @@ app.post("/api/process", (req, res) => {
   // Update crossbar size if provided
   if (size !== undefined) {
     const s = parseInt(size, 10)
-    if (s >= 2 && s <= 14) {
+    if (s >= 2) {
       currentSize = s
     }
   }
@@ -345,8 +356,9 @@ app.post("/api/process", (req, res) => {
   }
 
   try {
-    // Clear previous state when loading a file (fresh start)
+    // Clear previous state and locks when loading a file (fresh start)
     lastState = null
+    lastLocks = []
 
     // Create temp file for JSON output
     const tmpJson = path.join(__dirname, ".tmp_state.json")
@@ -370,6 +382,10 @@ app.post("/api/process", (req, res) => {
     // Clean up
     fs.unlinkSync(tmpJson)
 
+    if (state.lock_conflicts && state.lock_conflicts.length > 0) {
+      return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
+    }
+
     res.json({ ...state, solverLog })
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -380,7 +396,7 @@ app.post("/api/process", (req, res) => {
 // Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, size?: number }
 // e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true, size: 8 }
 app.post("/api/process-routes", (req, res) => {
-  const { routes, strictStability, size } = req.body
+  const { routes, strictStability, size, locks } = req.body
 
   if (!routes || typeof routes !== "object") {
     return res.status(400).json({ error: "No routes provided" })
@@ -389,7 +405,7 @@ app.post("/api/process-routes", (req, res) => {
   // Update crossbar size if provided
   if (size !== undefined) {
     const s = parseInt(size, 10)
-    if (s >= 2 && s <= 14) {
+    if (s >= 2) {
       currentSize = s
     }
   }
@@ -417,6 +433,7 @@ app.post("/api/process-routes", (req, res) => {
     const tmpRoutes = path.join(__dirname, ".tmp_routes.txt")
     const tmpJson = path.join(__dirname, ".tmp_state.json")
     const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
+    const tmpLocks = path.join(__dirname, ".tmp_locks.json")
 
     fs.writeFileSync(tmpRoutes, lines.join("\n"))
 
@@ -426,6 +443,13 @@ app.post("/api/process-routes", (req, res) => {
     if (lastState) {
       fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
       cmd += ` --previous-state "${tmpPrevState}"`
+    }
+
+    const lockArray = Array.isArray(locks) ? locks : []
+    lastLocks = lockArray
+    if (lockArray.length > 0) {
+      fs.writeFileSync(tmpLocks, JSON.stringify({ locks: lockArray }))
+      cmd += ` --locks "${tmpLocks}"`
     }
 
     if (strictStability) {
@@ -454,6 +478,13 @@ app.post("/api/process-routes", (req, res) => {
     if (fs.existsSync(tmpPrevState)) {
       fs.unlinkSync(tmpPrevState)
     }
+    if (fs.existsSync(tmpLocks)) {
+      fs.unlinkSync(tmpLocks)
+    }
+
+    if (state.lock_conflicts && state.lock_conflicts.length > 0) {
+      return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
+    }
 
     res.json({ ...state, solverLog })
   } catch (err) {
@@ -479,12 +510,13 @@ app.post("/api/size", (req, res) => {
   }
 
   const s = parseInt(size, 10)
-  if (s < 2 || s > 14) {
-    return res.status(400).json({ error: "Size must be between 2 and 14" })
+  if (s < 2) {
+    return res.status(400).json({ error: "Size must be >= 2" })
   }
 
   currentSize = s
   lastState = null  // Clear cached state when size changes
+  lastLocks = []
   res.json({ size: currentSize })
 })
 
