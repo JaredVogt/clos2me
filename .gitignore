@@ -9,3 +9,8 @@ clos-viz/state.json
 
 # OS files
 .DS_Store
+
+# Port config local override
+.ports.local.yaml
+.env
+.env.local

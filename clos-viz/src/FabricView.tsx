@@ -8,7 +8,11 @@ import { portToProPatch, parsePortId } from "./utils"
 type Props = {
   state: FabricState
   selectedInput: number | null
+  highlightInput?: number | null
+  highlightMode?: 'normal' | 'locked'
+  locksByInput?: Record<number, Record<number, number>>
   onSelectInput: (id: number | null) => void
+  onHoverInput?: (id: number | null, fromLock: boolean) => void
   // Route creation props
   onRouteClick?: (portId: number, isInput: boolean, event: React.MouseEvent) => void
   pendingInput?: number | null
@@ -35,7 +39,23 @@ type Cable = {
   stage: 1 | 2
 }
 
-export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, pendingInput, pendingOutputs, activeInputCount, activeOutputCount, relayMode }: Props) {
+type PortLockState = 'locked' | 'related' | 'none'
+
+export function FabricView({
+  state,
+  selectedInput,
+  highlightInput = null,
+  highlightMode = 'normal',
+  locksByInput = {},
+  onSelectInput,
+  onHoverInput,
+  onRouteClick,
+  pendingInput,
+  pendingOutputs,
+  activeInputCount,
+  activeOutputCount,
+  relayMode
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   // Refs for all crossbars
@@ -75,26 +95,98 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
         inLabels: string[]
         outLabels: string[]
         paths: { inIdx: number; outIdx: number; owner: number }[]
+        inLockStates: PortLockState[]
+        outLockStates: PortLockState[]
       }>
       spine: Array<{
         title: string
         inLabels: string[]
         outLabels: string[]
         paths: { inIdx: number; outIdx: number; owner: number }[]
+        inLockStates: PortLockState[]
+        outLockStates: PortLockState[]
       }>
       egress: Array<{
         title: string
         inLabels: string[]
         outLabels: string[]
         paths: { inIdx: number; outIdx: number; owner: number }[]
+        inLockStates: PortLockState[]
+        outLockStates: PortLockState[]
       }>
     } = { ingress: [], spine: [], egress: [] }
+
+    const lockedInputs = new Set<number>(
+      Object.keys(locksByInput).map(id => Number(id))
+    )
+
+    const usedBlocksByInput: Record<number, Set<number>> = {}
+    for (let port = 1; port <= state.MAX_PORTS; port++) {
+      const owner = state.s3_port_owner[port]
+      if (!owner || owner <= 0) continue
+      const block = Math.floor((port - 1) / state.N)
+      if (!usedBlocksByInput[owner]) usedBlocksByInput[owner] = new Set()
+      usedBlocksByInput[owner].add(block)
+    }
+
+    const initLockMatrix = (rows: number, cols: number) =>
+      Array.from({ length: rows }, () => Array.from({ length: cols }, () => 'none' as PortLockState))
+
+    const ingressOutLocks = initLockMatrix(state.TOTAL_BLOCKS, state.N)
+    const spineInLocks = initLockMatrix(state.N, state.TOTAL_BLOCKS)
+    const spineOutLocks = initLockMatrix(state.N, state.TOTAL_BLOCKS)
+    const egressInLocks = initLockMatrix(state.TOTAL_BLOCKS, state.N)
+
+    const hardLockedInputs = new Set<number>()
+    for (const [inputId, blocks] of Object.entries(locksByInput)) {
+      const input = Number(inputId)
+      const lockedBlocks = Object.keys(blocks).map(Number)
+      const usedBlocks = usedBlocksByInput[input] || new Set()
+      if (lockedBlocks.length === 0 || usedBlocks.size === 0) continue
+      const coversAll = lockedBlocks.length === usedBlocks.size && lockedBlocks.every(b => usedBlocks.has(b))
+      if (coversAll) hardLockedInputs.add(input)
+    }
+
+    const setLockState = (matrix: PortLockState[][], row: number, col: number, next: PortLockState) => {
+      const current = matrix[row][col]
+      if (current === 'locked') return
+      if (next === 'locked') {
+        matrix[row][col] = 'locked'
+      } else if (current === 'none') {
+        matrix[row][col] = 'related'
+      }
+    }
+
+    for (const [inputId, blocks] of Object.entries(locksByInput)) {
+      const input = Number(inputId)
+      const ingressBlock = Math.floor((input - 1) / state.N)
+      const usedBlocks = usedBlocksByInput[input] || new Set()
+      for (const [egressBlockStr, spine] of Object.entries(blocks)) {
+        const egressBlock = Number(egressBlockStr)
+        if (!usedBlocks.has(egressBlock)) continue
+        if (spine < 0 || spine >= state.N) continue
+        if (ingressBlock < 0 || ingressBlock >= state.TOTAL_BLOCKS) continue
+        const isHard = hardLockedInputs.has(input)
+        const lockState: PortLockState = isHard ? 'locked' : 'related'
+        setLockState(ingressOutLocks, ingressBlock, spine, lockState)
+        setLockState(spineInLocks, spine, ingressBlock, lockState)
+        setLockState(spineOutLocks, spine, egressBlock, lockState)
+        setLockState(egressInLocks, egressBlock, spine, lockState)
+      }
+    }
 
     // Ingress blocks
     for (let block = 0; block < state.TOTAL_BLOCKS; block++) {
       const basePort = block * state.N + 1
       const inLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
       const outLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
+      const inLockStates: PortLockState[] = Array.from({ length: state.N }, (_, k) => {
+        const inputId = basePort + k
+        return lockedInputs.has(inputId) ? 'locked' : 'none'
+      })
+      const outLockStates: PortLockState[] = Array.from({ length: state.N }, (_, s) => (
+        ingressOutLocks[block]?.[s] ?? 'none'
+      ))
 
       const paths: { inIdx: number; outIdx: number; owner: number }[] = []
       for (let spine = 0; spine < state.N; spine++) {
@@ -111,7 +203,9 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
         title: `Ingr ${String(block + 1).padStart(2, "0")}`,
         inLabels,
         outLabels,
-        paths
+        paths,
+        inLockStates,
+        outLockStates
       })
     }
 
@@ -119,6 +213,12 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
     for (let spine = 0; spine < state.N; spine++) {
       const inLabels = Array.from({ length: state.TOTAL_BLOCKS }, (_, b) => `I${b + 1}`)
       const outLabels = Array.from({ length: state.TOTAL_BLOCKS }, (_, e) => `E${e + 1}`)
+      const inLockStates: PortLockState[] = Array.from({ length: state.TOTAL_BLOCKS }, (_, b) => (
+        spineInLocks[spine]?.[b] ?? 'none'
+      ))
+      const outLockStates: PortLockState[] = Array.from({ length: state.TOTAL_BLOCKS }, (_, e) => (
+        spineOutLocks[spine]?.[e] ?? 'none'
+      ))
 
       const paths: { inIdx: number; outIdx: number; owner: number }[] = []
 
@@ -137,7 +237,9 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
         title: `Spine ${String(spine + 1).padStart(2, "0")}`,
         inLabels,
         outLabels,
-        paths
+        paths,
+        inLockStates,
+        outLockStates
       })
     }
 
@@ -146,6 +248,17 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
       const basePort = block * state.N + 1
       const inLabels = Array.from({ length: state.N }, (_, s) => `S${s + 1}`)
       const outLabels = Array.from({ length: state.N }, (_, k) => portToProPatch(basePort + k))
+      const inLockStates: PortLockState[] = Array.from({ length: state.N }, (_, s) => (
+        egressInLocks[block]?.[s] ?? 'none'
+      ))
+      const outLockStates: PortLockState[] = Array.from({ length: state.N }, (_, k) => {
+        const port = basePort + k
+        const owner = state.s3_port_owner[port] ?? 0
+        if (!owner) return 'none'
+        const ownerLocks = locksByInput[owner]
+        if (!ownerLocks || Object.keys(ownerLocks).length === 0) return 'none'
+        return ownerLocks[block] !== undefined ? 'locked' : 'related'
+      })
 
       const paths: { inIdx: number; outIdx: number; owner: number }[] = []
 
@@ -163,12 +276,14 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
         title: `Egr ${String(block + 1).padStart(2, "0")}`,
         inLabels,
         outLabels,
-        paths
+        paths,
+        inLockStates,
+        outLockStates
       })
     }
 
     return result
-  }, [state])
+  }, [state, locksByInput])
 
   // Build inter-column cables
   const cables = useMemo(() => {
@@ -360,14 +475,15 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
       {cablePositions && (
         <svg className="cablesSvg" width={cablePositions.width} height={cablePositions.height}>
           {cablePositions.cables.map((c, idx) => {
-            const isActive = c.owner === selectedInput
+            const isActive = c.owner === highlightInput
+            const isLockedActive = isActive && highlightMode === 'locked'
             const midX = (c.x1 + c.x2) / 2
 
             return (
               <path
                 key={idx}
                 d={`M ${c.x1} ${c.y1} C ${midX} ${c.y1}, ${midX} ${c.y2}, ${c.x2} ${c.y2}`}
-                className={`interCable ${isActive ? "active" : ""}`}
+                className={`interCable ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
                 onClick={() => onSelectInput(c.owner)}
               />
             )
@@ -391,7 +507,9 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
             <Crossbar
               ref={el => { ingressRefs.current[row] = el }}
               {...crossbars.ingress[row]}
-              selectedInput={selectedInput}
+              highlightInput={highlightInput}
+              highlightMode={highlightMode}
+              onHoverInput={onHoverInput}
               onSelectInput={onSelectInput}
               onRouteClick={onRouteClick ? (label, isInput, e) => {
                 // Only handle IN port clicks on ingress (selecting input)
@@ -412,7 +530,9 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
             <Crossbar
               ref={el => { spineRefs.current[row] = el }}
               {...crossbars.spine[row]}
-              selectedInput={selectedInput}
+              highlightInput={highlightInput}
+              highlightMode={highlightMode}
+              onHoverInput={onHoverInput}
               onSelectInput={onSelectInput}
             />
           </div>
@@ -424,7 +544,9 @@ export function FabricView({ state, selectedInput, onSelectInput, onRouteClick, 
             <Crossbar
               ref={el => { egressRefs.current[row] = el }}
               {...crossbars.egress[row]}
-              selectedInput={selectedInput}
+              highlightInput={highlightInput}
+              highlightMode={highlightMode}
+              onHoverInput={onHoverInput}
               onSelectInput={onSelectInput}
               onRouteClick={onRouteClick ? (label, isInput, e) => {
                 // Only handle OUT port clicks on egress (selecting output)

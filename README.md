@@ -11,20 +11,31 @@ Unlike a greedy/incremental placer, this version performs a **complete global re
 
 ## Topology
 
-Symmetric 3-stage Clos, equivalent to **C(10,10,10)**:
+Symmetric 3-stage Clos, equivalent to **C(N,N,N)** (default **N=10**):
 
 | Stage | Description | Ports |
 |-------|-------------|-------|
-| **Stage 1 (Ingress)** | 10 ingress blocks, 10 ports each | 1–100 |
-| **Stage 2 (Middle)** | 10 spines | — |
-| **Stage 3 (Egress)** | 10 egress blocks, 10 ports each | 1–100 |
+| **Stage 1 (Ingress)** | N ingress blocks, N ports each | 1–N² |
+| **Stage 2 (Middle)** | N spines | — |
+| **Stage 3 (Egress)** | N egress blocks, N ports each | 1–N² |
 
-Ports are grouped into blocks of 10:
+Ports are grouped into blocks of N (for N=10):
 
 - Block 1: ports 1–10
 - Block 2: ports 11–20
 - ...
 - Block 10: ports 91–100
+
+### Demand Bound (Worst Case)
+
+A solver “demand” exists for each **(input_id, egress_block)** pair that has at least one output in that block.
+
+For **C(N,N,N)**:
+- Inputs = **N²**
+- Egress blocks = **N**
+- Worst-case demands = **N² × N = N³**
+
+Example for **N=10**: **100 inputs × 10 egress blocks = 1,000 demands**.
 
 ## Problem Statement
 
@@ -32,7 +43,7 @@ Ports are grouped into blocks of 10:
 
 Mult requires that an input be present in the destination egress block(s) via the middle stage.
 
-This model has **one trunk per (spine, egress block)**, so each egress block can accept at most **10 distinct inputs** at the same time (one per spine). When more than 10 distinct sources demand the same egress block, the problem is unsatisfiable.
+This model has **one trunk per (spine, egress block)**, so each egress block can accept at most **N distinct inputs** at the same time (one per spine). When more than N distinct sources demand the same egress block, the problem is unsatisfiable.
 
 ### Route Isolation
 
@@ -51,13 +62,13 @@ This is enforced by modeling Stage 3 as **one-of-m selection per output port**:
 
 ### In Plain English
 
-You have 100 input ports and 100 output ports. You want to connect inputs to outputs—sometimes one input to a single output, sometimes one input to many outputs (that's multicast).
+You have N² input ports and N² output ports. You want to connect inputs to outputs—sometimes one input to a single output, sometimes one input to many outputs (that's multicast).
 
-The catch: everything has to pass through a middle layer of 10 "spines." The solver's job is to figure out which spine each connection should use.
+The catch: everything has to pass through a middle layer of N "spines" (10 in the default config). The solver's job is to figure out which spine each connection should use.
 
 **Why it's tricky:**
-- Each spine can only carry one input's signal to each output group (10 outputs share a group)
-- If 11 different inputs all need to reach the same output group, the request is rejected immediately—no solving needed, it's a capacity violation
+- Each spine can only carry one input's signal to each output group (N outputs share a group)
+- If more than N different inputs all need to reach the same output group, the request is rejected immediately—no solving needed, it's a capacity violation
 - Inputs from the same group also compete for spine access on their side
 
 **What the solver does:**
@@ -112,8 +123,8 @@ Analyzes `desired_owner[]` to extract `(input_id, egress_block)` pairs that need
 
 Before expensive backtracking, performs quick feasibility tests:
 
-- **Egress capacity**: No more than 10 distinct inputs can target the same egress block
-- **Ingress capacity**: No more than 10 active inputs can originate from the same ingress block
+- **Egress capacity**: No more than N distinct inputs can target the same egress block
+- **Ingress capacity**: No more than N active inputs can originate from the same ingress block
 
 If either check fails, the solver prints `UNSAT DETAILS` and exits—no solution exists.
 
@@ -214,8 +225,18 @@ At the end it prints:
 
 ```bash
 gcc -O2 -Wall -Wextra -std=c11 clos_mult_router.c -o clos_mult_router
-./clos_mult_router routes.txt
+./clos_mult_router routes.txt --size 10
 ```
+
+## Origin
+
+This project started from [this ChatGPT conversation](https://chatgpt.com/c/6954eed4-6548-8333-b818-e0c4b96f31eb).
+
+## References
+
+- [Load Balancing and Scalable Clos-Network Packet Switches](https://digitalcommons.njit.edu/dissertations/1394/) — Doctoral dissertation on packet switch configurations achieving optimal throughput with sequential cell forwarding.
+- [TRIDENT: A Load-Balancing Clos-Network Packet Switch](https://arxiv.org/abs/1907.00736) — Paper on Clos-network switches with queues between input and central stages.
+- [CPP CLOS Solver](https://github.com/dca-io/cpp-clos/tree/9c21865e300c7b074d33e04f2d0102f6826a4a3a) — C++ implementation of a Clos solver (private repo).
 
 ## License
 
