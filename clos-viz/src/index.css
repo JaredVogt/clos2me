@@ -24,6 +24,7 @@
 }
 
 .title { font-weight: 700; font-size: 16px; }
+.buildInfo { font-weight: 400; font-size: 11px; color: #888; margin-left: 12px; }
 
 .file input { display: none; }
 .file {
@@ -188,6 +189,22 @@
 /* Route File Dropdown Selector */
 .routeSelector {
   position: relative;
+}
+
+.preserveStateCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+.preserveStateCheckbox input {
+  cursor: pointer;
+}
+.preserveStateCheckbox:hover {
+  color: #333;
 }
 
 .routeDropdownTrigger {
@@ -802,6 +819,38 @@
 .logEntry--detail .logEntryLevel {
   color: #888;
   font-style: italic;
+}
+
+/* Summary Resize Handle */
+.summaryResizeHandle {
+  height: 6px;
+  background: #e0e0e0;
+  cursor: row-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.summaryResizeHandle:hover {
+  background: #0066cc;
+}
+
+/* Fabric Summary Box */
+.fabricSummary {
+  flex-shrink: 0;
+  border-top: 1px solid #ccc;
+  background: #f0f7ff;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.fabricSummary pre {
+  margin: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #333;
 }
 
 /* Relay Mode Styles */

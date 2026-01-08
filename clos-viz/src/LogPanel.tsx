@@ -1,8 +1,9 @@
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef, useEffect, useState } from "react"
 import type { LogEntry, LogLevel } from "./schema"
 
 type Props = {
   entries: LogEntry[]
+  fabricSummary: string | null
   level: LogLevel
   onLevelChange: (level: LogLevel) => void
   persistHistory: boolean
@@ -14,6 +15,7 @@ const levelOrder: LogLevel[] = ['summary', 'route', 'detail']
 
 export function LogPanel({
   entries,
+  fabricSummary,
   level,
   onLevelChange,
   persistHistory,
@@ -21,6 +23,9 @@ export function LogPanel({
   onClear
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
+  const [summaryHeight, setSummaryHeight] = useState(150)
+  const [isResizingSummary, setIsResizingSummary] = useState(false)
 
   // Filter entries based on selected level
   // 'summary' shows only summary, 'route' shows summary+route, 'detail' shows all
@@ -35,6 +40,34 @@ export function LogPanel({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [filteredEntries.length])
+
+  // Handle summary resize drag
+  useEffect(() => {
+    if (!isResizingSummary) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!panelRef.current) return
+      const panelRect = panelRef.current.getBoundingClientRect()
+      const newHeight = panelRect.bottom - e.clientY
+      setSummaryHeight(Math.max(50, Math.min(400, newHeight)))
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingSummary(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizingSummary])
 
   // Group entries by run (using timestamp proximity)
   const groupedEntries = useMemo(() => {
@@ -71,7 +104,7 @@ export function LogPanel({
   }
 
   return (
-    <aside className="logPanel">
+    <aside className="logPanel" ref={panelRef}>
       <div className="logHeader">
         <div className="logTitle">Solver Log</div>
         <div className="logControls">
@@ -116,6 +149,18 @@ export function LogPanel({
           ))
         )}
       </div>
+
+      {fabricSummary && (
+        <>
+          <div
+            className="summaryResizeHandle"
+            onMouseDown={() => setIsResizingSummary(true)}
+          />
+          <div className="fabricSummary" style={{ height: summaryHeight }}>
+            <pre>{fabricSummary}</pre>
+          </div>
+        </>
+      )}
     </aside>
   )
 }

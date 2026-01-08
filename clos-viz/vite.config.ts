@@ -1,9 +1,21 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { execSync } from 'child_process'
+
+function getGitInfo() {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim()
+    const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+    return { branch, commit }
+  } catch {
+    return { branch: 'unknown', commit: 'unknown' }
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
+  const gitInfo = getGitInfo()
   const repoRoot = path.resolve(__dirname, '..')
   const envRoot = loadEnv(mode, repoRoot, '')
   const envLocal = loadEnv(mode, __dirname, '')
@@ -16,6 +28,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      __GIT_BRANCH__: JSON.stringify(gitInfo.branch),
+      __GIT_COMMIT__: JSON.stringify(gitInfo.commit),
+    },
     server: {
       host: '0.0.0.0',
       port: parseInt(devPort, 10),

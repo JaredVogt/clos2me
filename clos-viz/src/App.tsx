@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react"
-import { fabricStateSchema, solverResponseSchema, type FabricState, type LogEntry, type LogLevel } from "./schema"
+import { fabricStateSchema, solverResponseSchema, type FabricState, type LogEntry, type LogLevel, type LogType } from "./schema"
 import { deriveInputs } from "./derive"
 import { FabricView } from "./FabricView"
 import { LogPanel } from "./LogPanel"
@@ -52,8 +52,10 @@ export default function App() {
 
   // Solver log state
   const [solverLog, setSolverLog] = useState<LogEntry[]>([])
+  const [fabricSummary, setFabricSummary] = useState<string | null>(null)
   const [logLevel, setLogLevel] = useState<LogLevel>('summary')
   const [persistLog, setPersistLog] = useState(false)
+  const [preserveState, setPreserveState] = useState(true) // Preserve routing state across file switches
   const [logPanelWidth, setLogPanelWidth] = useState(400)
   const [isResizing, setIsResizing] = useState(false)
 
@@ -449,12 +451,30 @@ export default function App() {
     }
   }
 
+  // Clear server-side routing state (for fresh loads without delta tracking)
+  async function clearState() {
+    try {
+      const res = await fetch("/api/clear-state", { method: "POST" })
+      if (!res.ok) throw new Error("Failed to clear state")
+      console.log("State cleared - next load will start fresh")
+    } catch (e) {
+      console.error("Failed to clear state:", e)
+    }
+  }
+
   async function processRouteFile(filename: string) {
     setError(null)
     setLoading(true)
+    setSolverLog([]) // Clear log - new run makes previous log stale
+    setFabricSummary(null) // Clear summary - new run replaces it
     setSelectedRoute(filename)
     setModifiedFile(null) // Clear modified state when loading a new file
     setLocksByInput({})
+
+    // Clear server state if preserveState is disabled
+    if (!preserveState) {
+      await clearState()
+    }
 
     // Extract size from filename (e.g., "test.8.txt" -> 8)
     const sizeMatch = filename.match(/\.(\d+)\.txt$/)
@@ -466,30 +486,88 @@ export default function App() {
       setSizeInput(String(fileSize))
     }
 
-    try {
-      const res = await fetch("/api/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, size: fileSize })
-      })
+    // Use SSE for streaming solver output
+    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}`
+    const eventSource = new EventSource(url)
 
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to process route file")
+    // Track if we're in the Fabric Summary section
+    let inSummary = false
+    let summaryLines: string[] = []
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+
+        if (data.type === "log") {
+          // Strip [S] prefix since LogPanel adds its own level indicator
+          const cleanLine = data.line.replace(/^\[S\]\s*/, '')
+
+          // Check if we're entering the Fabric Summary section
+          if (data.line.includes('=== Fabric Summary ===')) {
+            inSummary = true
+          }
+
+          // Route summary lines to fabricSummary, others to log
+          if (inSummary) {
+            summaryLines.push(cleanLine)
+            setFabricSummary(summaryLines.join('\n'))
+          } else {
+            // Categorize log level to match parseRouterLog in server.js
+            // Summary: REPACK OK, STATS, FAIL
+            // Route: >> ROUTE, ROLLBACK
+            // Detail: everything else (heatmap, port selections, PROGRESS, etc.)
+            let level: LogLevel = 'detail'
+            let type: LogType = 'info'
+
+            if (data.line.includes('REPACK OK')) {
+              level = 'summary'; type = 'success'
+            } else if (data.line.includes('STATS:')) {
+              level = 'summary'; type = 'info'
+            } else if (data.line.includes('FAIL:')) {
+              level = 'summary'; type = 'error'
+            } else if (data.line.includes('>> ROUTE:')) {
+              level = 'route'; type = 'info'
+            } else if (data.line.includes('ROLLBACK:')) {
+              level = 'route'; type = 'warning'
+            }
+            // else: keep as detail (heatmap, port selections, PROGRESS, etc.)
+
+            const entry: LogEntry = {
+              level,
+              timestamp: new Date().toISOString(),
+              message: cleanLine,
+              type
+            }
+            setSolverLog(prev => [...prev, entry])
+          }
+        } else if (data.type === "error") {
+          const entry: LogEntry = {
+            level: "summary",
+            timestamp: new Date().toISOString(),
+            message: `ERROR: ${data.message}`,
+            type: "error"
+          }
+          setSolverLog(prev => [...prev, entry])
+        } else if (data.type === "complete") {
+          eventSource.close()
+
+          if (data.error) {
+            setError(data.error)
+          } else if (data.state) {
+            const parsed = solverResponseSchema.parse(data.state)
+            setState(parsed)
+            setSelectedInput(null)
+          }
+          setLoading(false)
+        }
+      } catch (e) {
+        console.error("SSE parse error:", e)
       }
+    }
 
-      const json = await res.json()
-      const parsed = solverResponseSchema.parse(json)
-      setState(parsed)
-      setSelectedInput(null)
-
-      // Update solver log
-      if (parsed.solverLog) {
-        setSolverLog(prev => persistLog ? [...prev, ...parsed.solverLog] : parsed.solverLog)
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to process route file")
-    } finally {
+    eventSource.onerror = () => {
+      eventSource.close()
+      setError("Connection to solver lost")
       setLoading(false)
     }
   }
@@ -817,7 +895,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="title">clos2me - clos visualizer</div>
+        <div className="title">
+          clos2me - clos visualizer
+          <span className="buildInfo">{__GIT_BRANCH__} @ {__GIT_COMMIT__}</span>
+        </div>
         {relayMode && (
           <div className="relayModeIndicator">
             [C] Relay Mode
@@ -1029,6 +1110,16 @@ export default function App() {
               )}
             </div>
 
+            {/* Preserve State checkbox - controls delta tracking across file switches */}
+            <label className="preserveStateCheckbox">
+              <input
+                type="checkbox"
+                checked={preserveState}
+                onChange={e => setPreserveState(e.target.checked)}
+              />
+              Preserve state
+            </label>
+
             {/* Hidden file input for upload */}
             <input
               ref={uploadRef}
@@ -1141,11 +1232,12 @@ export default function App() {
 
         <LogPanel
           entries={solverLog}
+          fabricSummary={fabricSummary}
           level={logLevel}
           onLevelChange={setLogLevel}
           persistHistory={persistLog}
           onPersistChange={setPersistLog}
-          onClear={() => setSolverLog([])}
+          onClear={() => { setSolverLog([]); setFabricSummary(null) }}
         />
       </div>
     </div>

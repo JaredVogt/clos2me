@@ -3,7 +3,7 @@
 import express from "express"
 import cors from "cors"
 import multer from "multer"
-import { execSync } from "child_process"
+import { execSync, spawn } from "child_process"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -356,17 +356,25 @@ app.post("/api/process", (req, res) => {
   }
 
   try {
-    // Clear previous state and locks when loading a file (fresh start)
-    lastState = null
+    // Clear locks when loading a file (but preserve lastState for delta tracking)
     lastLocks = []
 
-    // Create temp file for JSON output
+    // Create temp files for JSON output and previous state
     const tmpJson = path.join(__dirname, ".tmp_state.json")
+    const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
 
-    // Run the router and capture stdout (include --size flag)
-    const stdout = execSync(`"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}" --size ${currentSize}`, {
+    // Build command with optional previous state for delta tracking
+    let cmd = `"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}" --size ${currentSize}`
+
+    if (lastState) {
+      fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
+      cmd += ` --previous-state "${tmpPrevState}"`
+    }
+
+    // Run the router and capture stdout
+    const stdout = execSync(cmd, {
       encoding: "utf-8",
-      timeout: 60000
+      timeout: 300000
     })
 
     // Read and return the JSON
@@ -390,6 +398,118 @@ app.post("/api/process", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// GET /api/process-stream - SSE endpoint for streaming solver output
+// Query: ?filename=routes.txt&size=10
+app.get("/api/process-stream", (req, res) => {
+  const { filename, size } = req.query
+
+  if (!filename) {
+    return res.status(400).json({ error: "No filename provided" })
+  }
+
+  // Update crossbar size if provided
+  if (size !== undefined) {
+    const s = parseInt(size, 10)
+    if (s >= 2) {
+      currentSize = s
+    }
+  }
+
+  const routePath = path.join(ROUTES_DIR, filename)
+
+  // Security: ensure file is within ROUTES_DIR
+  if (!routePath.startsWith(ROUTES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  if (!fs.existsSync(routePath)) {
+    return res.status(404).json({ error: "Route file not found" })
+  }
+
+  if (!fs.existsSync(ROUTER_PATH)) {
+    return res.status(500).json({ error: "Router binary not found" })
+  }
+
+  // Set up SSE headers
+  res.setHeader("Content-Type", "text/event-stream")
+  res.setHeader("Cache-Control", "no-cache")
+  res.setHeader("Connection", "keep-alive")
+  res.flushHeaders()
+
+  // Clear locks when loading a file (but preserve lastState for delta tracking)
+  lastLocks = []
+
+  // Create temp files
+  const tmpJson = path.join(__dirname, ".tmp_state.json")
+  const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
+
+  // Build args array for spawn
+  const args = [routePath, "--json", tmpJson, "--size", String(currentSize)]
+
+  if (lastState) {
+    fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
+    args.push("--previous-state", tmpPrevState)
+  }
+
+  // Spawn the router process
+  const child = spawn(ROUTER_PATH, args)
+  let stdoutBuffer = ""
+
+  // Stream stdout lines as SSE events
+  child.stdout.on("data", (data) => {
+    stdoutBuffer += data.toString()
+    const lines = stdoutBuffer.split("\n")
+    stdoutBuffer = lines.pop() // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.trim()) {
+        // Send each line as an SSE event
+        res.write(`data: ${JSON.stringify({ type: "log", line })}\n\n`)
+      }
+    }
+  })
+
+  child.stderr.on("data", (data) => {
+    res.write(`data: ${JSON.stringify({ type: "error", message: data.toString() })}\n\n`)
+  })
+
+  child.on("close", (code) => {
+    // Send any remaining buffered output
+    if (stdoutBuffer.trim()) {
+      res.write(`data: ${JSON.stringify({ type: "log", line: stdoutBuffer })}\n\n`)
+    }
+
+    if (code !== 0) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: `Process exited with code ${code}` })}\n\n`)
+      res.end()
+      return
+    }
+
+    try {
+      // Read the final JSON state
+      const stateJson = fs.readFileSync(tmpJson, "utf-8")
+      const state = JSON.parse(stateJson)
+
+      // Cache for future incremental updates
+      lastState = state
+
+      // Clean up temp file
+      fs.unlinkSync(tmpJson)
+
+      // Send the complete state
+      res.write(`data: ${JSON.stringify({ type: "complete", state })}\n\n`)
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: err.message })}\n\n`)
+    }
+    res.end()
+  })
+
+  // Handle client disconnect
+  req.on("close", () => {
+    child.kill()
+  })
 })
 
 // POST /api/process-routes - Process routes from JSON directly
@@ -459,7 +579,7 @@ app.post("/api/process-routes", (req, res) => {
     // Run the router and capture stdout
     const stdout = execSync(cmd, {
       encoding: "utf-8",
-      timeout: 60000
+      timeout: 300000
     })
 
     // Read and return the JSON
@@ -518,6 +638,14 @@ app.post("/api/size", (req, res) => {
   lastState = null  // Clear cached state when size changes
   lastLocks = []
   res.json({ size: currentSize })
+})
+
+// POST /api/clear-state - Clear cached routing state (for fresh loads without delta tracking)
+app.post("/api/clear-state", (req, res) => {
+  lastState = null
+  lastLocks = []
+  console.log('[debug] State cleared - next load will start fresh')
+  res.json({ success: true, message: "State cleared" })
 })
 
 app.listen(PORT, () => {

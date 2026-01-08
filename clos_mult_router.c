@@ -1118,6 +1118,21 @@ static int domain_size(const SolverCtx *ctx, const Demand *d) {
 }
 
 static bool backtrack(SolverCtx *ctx, int depth) {
+  // Time-based progress reporting (every 5 seconds)
+  static long long solve_attempts = 0;
+  static struct timeval last_report = {0, 0};
+  solve_attempts++;
+
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  long elapsed_ms = (now.tv_sec - last_report.tv_sec) * 1000 +
+                    (now.tv_usec - last_report.tv_usec) / 1000;
+  if (elapsed_ms >= 5000 || last_report.tv_sec == 0) {  // Every 5 seconds
+    printf("[S] PROGRESS: %lld attempts in %lds (depth=%d/%d, best_cost=%d)\n",
+           solve_attempts, now.tv_sec - last_report.tv_sec, depth, ctx->num_demands, ctx->best_stability_cost);
+    last_report = now;
+  }
+
   // Optimize for stability only (branch cost removed for speed - see WOL-598)
   if (ctx->stability_cost >= ctx->best_stability_cost) return false;
 
@@ -1812,6 +1827,9 @@ static void process_file(const char *filename) {
 }
 
 int main(int argc, char *argv[]) {
+  // Unbuffered stdout for real-time streaming to frontend
+  setbuf(stdout, NULL);
+
   const char *routes_path = NULL;
   const char *json_path = NULL;
   const char *prev_state_path = NULL;
