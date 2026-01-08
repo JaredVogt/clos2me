@@ -430,7 +430,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(255,255,255,0.9);
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
   padding: 20px 40px;
   border-radius: 8px;
   font-weight: 600;
