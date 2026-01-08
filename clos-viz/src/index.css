@@ -37,6 +37,17 @@
 }
 .file:hover { background: #f8f8f8; }
 
+.killRunBtn {
+  padding: 8px 12px;
+  border: 1px solid #c33;
+  border-radius: 6px;
+  background: #fff5f5;
+  color: #b00000;
+  cursor: pointer;
+  font-size: 13px;
+}
+.killRunBtn:hover { background: #ffecec; }
+
 .stabilityToggle {
   display: flex;
   align-items: center;
@@ -191,19 +202,31 @@
   position: relative;
 }
 
-.preserveStateCheckbox {
+.preserveStateControls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.preserveStateLabel {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+
+.preserveStateOption {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 8px;
   font-size: 12px;
   color: #666;
   cursor: pointer;
 }
-.preserveStateCheckbox input {
+.preserveStateOption input {
   cursor: pointer;
 }
-.preserveStateCheckbox:hover {
+.preserveStateOption:hover {
   color: #333;
 }
 
@@ -851,6 +874,14 @@
   white-space: pre-wrap;
   word-break: break-word;
   color: #333;
+}
+
+.runSummary {
+  font-size: 12px;
+  color: #333;
+  padding: 8px 10px;
+  background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 /* Relay Mode Styles */

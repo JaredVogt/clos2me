@@ -36,6 +36,8 @@
 #include <sys/time.h>
 
 #define MAX_LINE_LENGTH 1024
+#define PROGRESS_CHECK_INTERVAL 1024  // must be power-of-two for mask check
+#define PROGRESS_CHECK_MASK (PROGRESS_CHECK_INTERVAL - 1)
 
 // --- SIZE CONFIG ------------------------------------------------------------
 // Runtime-configurable Clos size (C(N,N,N)). Defaults to N=10.
@@ -68,6 +70,8 @@ static bool tracked_initial = false;     // whether we've captured initial state
 static long long total_solve_us = 0;     // cumulative solve time across all repacks
 static long long last_solve_us = 0;      // last repack solve time
 static int repack_count = 0;             // number of successful repacks
+static long long last_solve_nodes = 0;   // last repack backtrack nodes
+static long long total_solve_nodes = 0;  // cumulative backtrack nodes across repacks
 
 // --- FABRIC STATE (realized solution) ---------------------------------------
 static int **s1_to_s2 = NULL;            // ingress block -> spine trunk owner (0 free, else input_id)
@@ -76,6 +80,10 @@ static int **s2_to_s3 = NULL;            // spine -> egress block trunk owner (0
 static int *s2_to_s3_storage = NULL;
 static int *s3_port_owner = NULL;        // output port -> input_id (0 free)
 static int *s3_port_spine = NULL;        // output port -> spine index (0..N-1), -1 if disconnected
+static int **demand_count = NULL;        // input_id -> egress block output count
+static int *demand_count_storage = NULL;
+static int **current_spine_for = NULL;   // input_id -> egress block spine, -1 if none
+static int *current_spine_for_storage = NULL;
 
 // --- LOCKED PATHS -----------------------------------------------------------
 // lock_spine_for[input_id][egress_block] = spine (0..N-1), or -1 if unlocked
@@ -97,6 +105,16 @@ static int lock_conflict_count = 0;
 static int lock_conflict_cap = 0;
 
 static int last_rerouted_outputs = 0;
+
+// --- INCREMENTAL REPAIR METRICS ---------------------------------------------
+static bool incremental_mode = false;
+static long long total_repair_us = 0;
+static long long last_repair_us = 0;
+static int repair_count = 0;
+static int repair_attempts = 0;
+static int repair_failures = 0;
+static long long last_repair_nodes = 0;
+static long long total_repair_nodes = 0;
 
 // --- HELPERS ----------------------------------------------------------------
 static inline int get_block(int port) {
@@ -182,6 +200,17 @@ static inline long long now_us(void) {
   gettimeofday(&tv, NULL);
   return (long long)tv.tv_sec * 1000000LL + (long long)tv.tv_usec;
 }
+
+static int find_spine_for_input_egress(int input_id, int egress_block, int **s2) {
+  for (int s = 0; s < N; s++) {
+    if (s2[s][egress_block] == input_id) return s;
+  }
+  return -1;
+}
+
+// --- SOLVER SCRATCH (forward decl) ------------------------------------------
+static bool init_solver_scratch(void);
+static void free_solver_scratch(void);
 
 static void compute_lock_counts(const uint64_t *need_blocks_mask, int block_words) {
   last_locked_demands = 0;
@@ -369,12 +398,15 @@ static bool validate_locks_against_demands(const uint64_t *need_blocks_mask, int
 }
 
 static void free_fabric(void) {
+  free_solver_scratch();
   free(desired_owner);
   free(prev_s3_port_spine);
   free(s3_port_owner);
   free(s3_port_spine);
   free_int_matrix(s1_to_s2, s1_to_s2_storage);
   free_int_matrix(s2_to_s3, s2_to_s3_storage);
+  free_int_matrix(demand_count, demand_count_storage);
+  free_int_matrix(current_spine_for, current_spine_for_storage);
   free_int_matrix(lock_spine_for, lock_spine_for_storage);
   free(lock_conflicts);
   desired_owner = NULL;
@@ -385,6 +417,10 @@ static void free_fabric(void) {
   s1_to_s2_storage = NULL;
   s2_to_s3 = NULL;
   s2_to_s3_storage = NULL;
+  demand_count = NULL;
+  demand_count_storage = NULL;
+  current_spine_for = NULL;
+  current_spine_for_storage = NULL;
   lock_spine_for = NULL;
   lock_spine_for_storage = NULL;
   lock_conflicts = NULL;
@@ -397,6 +433,15 @@ static void free_fabric(void) {
   total_solve_us = 0;
   last_solve_us = 0;
   repack_count = 0;
+  last_solve_nodes = 0;
+  total_solve_nodes = 0;
+  total_repair_us = 0;
+  last_repair_us = 0;
+  repair_count = 0;
+  repair_attempts = 0;
+  repair_failures = 0;
+  last_repair_nodes = 0;
+  total_repair_nodes = 0;
 }
 
 static bool init_fabric(int size) {
@@ -426,8 +471,11 @@ static bool init_fabric(int size) {
   s3_port_spine = malloc(sizeof(int) * ((size_t)g_max_ports + 1));
   s1_to_s2 = alloc_int_matrix(g_total_blocks, g_N, &s1_to_s2_storage);
   s2_to_s3 = alloc_int_matrix(g_N, g_total_blocks, &s2_to_s3_storage);
+  demand_count = alloc_int_matrix(g_max_ports + 1, g_total_blocks, &demand_count_storage);
+  current_spine_for = alloc_int_matrix(g_max_ports + 1, g_total_blocks, &current_spine_for_storage);
 
-  if (!desired_owner || !prev_s3_port_spine || !s3_port_owner || !s3_port_spine || !s1_to_s2 || !s2_to_s3) {
+  if (!desired_owner || !prev_s3_port_spine || !s3_port_owner || !s3_port_spine || !s1_to_s2 || !s2_to_s3 ||
+      !demand_count || !current_spine_for) {
     fprintf(stderr, "Out of memory initializing fabric\n");
     free_fabric();
     return false;
@@ -440,9 +488,20 @@ static bool init_fabric(int size) {
     return false;
   }
 
+  if (!init_solver_scratch()) {
+    fprintf(stderr, "Out of memory initializing solver scratch\n");
+    free_fabric();
+    return false;
+  }
+
   for (int p = 0; p <= MAX_PORTS; p++) {
     prev_s3_port_spine[p] = -1;
     s3_port_spine[p] = -1;
+  }
+  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      current_spine_for[in_id][e] = -1;
+    }
   }
 
   return true;
@@ -564,12 +623,22 @@ static bool write_state_json(const char *path) {
   // Legacy stability field
   fprintf(f, "\"stability_changes\":%d,", last_stability_cost);
   fprintf(f, "\"strict_stability\":%s,", strict_stability ? "true" : "false");
+  fprintf(f, "\"incremental\":%s,", incremental_mode ? "true" : "false");
   fprintf(f, "\"lock_conflicts\":");
   json_write_lock_conflicts(f);
   fprintf(f, ",");
   fprintf(f, "\"solve_ms\":%.3f,", last_solve_us / 1000.0);
   fprintf(f, "\"solve_total_ms\":%.3f,", total_solve_us / 1000.0);
+  fprintf(f, "\"solve_nodes\":%lld,", last_solve_nodes);
+  fprintf(f, "\"solve_nodes_total\":%lld,", total_solve_nodes);
   fprintf(f, "\"repack_count\":%d,", repack_count);
+  fprintf(f, "\"repair_count\":%d,", repair_count);
+  fprintf(f, "\"repair_attempts\":%d,", repair_attempts);
+  fprintf(f, "\"repair_failures\":%d,", repair_failures);
+  fprintf(f, "\"repair_ms\":%.3f,", last_repair_us / 1000.0);
+  fprintf(f, "\"repair_total_ms\":%.3f,", total_repair_us / 1000.0);
+  fprintf(f, "\"repair_nodes\":%lld,", last_repair_nodes);
+  fprintf(f, "\"repair_nodes_total\":%lld,", total_repair_nodes);
   fprintf(f, "\"reroutes_demands\":%d,", last_stability_cost);
   fprintf(f, "\"reroutes_outputs\":%d,", last_rerouted_outputs);
   fprintf(f, "\"locked_demands\":%d,", last_locked_demands);
@@ -841,6 +910,26 @@ static void print_fabric_summary(void) {
     printf("Solve time: last %.3f ms, total %.3f ms (%d repack%s)\n",
            last_solve_us / 1000.0, total_solve_us / 1000.0, repack_count, repack_count == 1 ? "" : "s");
   }
+  {
+    long long total_nodes = total_solve_nodes + total_repair_nodes;
+    long long total_us = total_solve_us + total_repair_us;
+    if (total_nodes > 0 && total_us > 0) {
+      double total_nodes_per_sec = (double)total_nodes * 1000000.0 / (double)total_us;
+      double last_nodes_per_sec = 0.0;
+      const char *last_label = "n/a";
+      if (last_solve_us > 0) {
+        last_label = "solve";
+        last_nodes_per_sec = (double)last_solve_nodes * 1000000.0 / (double)last_solve_us;
+      } else if (last_repair_us > 0) {
+        last_label = "repair";
+        last_nodes_per_sec = (double)last_repair_nodes * 1000000.0 / (double)last_repair_us;
+      }
+      printf("Backtracking throughput: last %s %.1f nodes/sec, total %.1f nodes/sec\n",
+             last_label, last_nodes_per_sec, total_nodes_per_sec);
+    } else {
+      printf("Backtracking throughput: n/a (no backtracking nodes)\n");
+    }
+  }
 
   // Multicast section
   printf("\nMulticast:\n");
@@ -945,6 +1034,39 @@ typedef struct {
 } Demand;
 
 typedef struct {
+  int port;
+  int prev_owner;
+} PortEdit;
+
+typedef struct {
+  int max_demands;
+  int block_words;
+  int spine_words;
+
+  Demand *demands;
+  Demand *demands_backup;
+  int *active_inputs;
+  uint64_t *need_blocks_mask;
+
+  int **tmp_s2;
+  int *tmp_s2_storage;
+  int **tmp_s1_owner;
+  int *tmp_s1_owner_storage;
+
+  uint64_t *used_spines_mask;
+  int *assignment;
+  int *best_assignment;
+  int *spine_use_count;
+
+  int **prev_spine_for;
+  int *prev_spine_for_storage;
+
+  bool initialized;
+} SolverScratch;
+
+static SolverScratch solver_scratch = {0};
+
+typedef struct {
   // candidate solution buffers
   int **s1;
   int *s1_storage;
@@ -961,6 +1083,56 @@ static void free_solution(FabricSolution *sol) {
   free(sol->s3_owner);
   free(sol->s3_spine);
   *sol = (FabricSolution){0};
+}
+
+static void free_solver_scratch(void) {
+  free(solver_scratch.demands);
+  free(solver_scratch.demands_backup);
+  free(solver_scratch.active_inputs);
+  free(solver_scratch.need_blocks_mask);
+  free_int_matrix(solver_scratch.tmp_s2, solver_scratch.tmp_s2_storage);
+  free_int_matrix(solver_scratch.tmp_s1_owner, solver_scratch.tmp_s1_owner_storage);
+  free(solver_scratch.used_spines_mask);
+  free(solver_scratch.assignment);
+  free(solver_scratch.best_assignment);
+  free(solver_scratch.spine_use_count);
+  free_int_matrix(solver_scratch.prev_spine_for, solver_scratch.prev_spine_for_storage);
+  solver_scratch = (SolverScratch){0};
+}
+
+static bool init_solver_scratch(void) {
+  free_solver_scratch();
+
+  solver_scratch.max_demands = (int)g_max_demands;
+  solver_scratch.block_words = bitset_words(TOTAL_BLOCKS);
+  solver_scratch.spine_words = bitset_words(N);
+
+  int max_demands = solver_scratch.max_demands;
+  int block_words = solver_scratch.block_words;
+  int spine_words = solver_scratch.spine_words;
+
+  solver_scratch.demands = malloc(sizeof(Demand) * (size_t)max_demands);
+  solver_scratch.demands_backup = malloc(sizeof(Demand) * (size_t)max_demands);
+  solver_scratch.active_inputs = malloc(sizeof(int) * ((size_t)MAX_PORTS + 1));
+  solver_scratch.need_blocks_mask = malloc(sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)block_words);
+  solver_scratch.tmp_s2 = alloc_int_matrix(N, TOTAL_BLOCKS, &solver_scratch.tmp_s2_storage);
+  solver_scratch.tmp_s1_owner = alloc_int_matrix(TOTAL_BLOCKS, N, &solver_scratch.tmp_s1_owner_storage);
+  solver_scratch.used_spines_mask = malloc(sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)spine_words);
+  solver_scratch.assignment = malloc(sizeof(int) * (size_t)max_demands);
+  solver_scratch.best_assignment = malloc(sizeof(int) * (size_t)max_demands);
+  solver_scratch.spine_use_count = malloc(sizeof(int) * ((size_t)MAX_PORTS + 1) * (size_t)N);
+  solver_scratch.prev_spine_for = alloc_int_matrix(MAX_PORTS + 1, TOTAL_BLOCKS, &solver_scratch.prev_spine_for_storage);
+
+  if (!solver_scratch.demands || !solver_scratch.demands_backup || !solver_scratch.active_inputs || !solver_scratch.need_blocks_mask ||
+      !solver_scratch.tmp_s2 || !solver_scratch.tmp_s1_owner || !solver_scratch.used_spines_mask ||
+      !solver_scratch.assignment || !solver_scratch.best_assignment || !solver_scratch.spine_use_count ||
+      !solver_scratch.prev_spine_for) {
+    free_solver_scratch();
+    return false;
+  }
+
+  solver_scratch.initialized = true;
+  return true;
 }
 
 // Builds demands from desired_owner and returns count
@@ -1090,7 +1262,13 @@ typedef struct {
   // Stability cost tracking (branch cost removed for speed - see WOL-598)
   int stability_cost;       // current count of spine changes from previous state
   int best_stability_cost;  // best solution's stability cost
+
+  // Progress reporting (per-solve)
+  long long solve_attempts;
+  long long last_report_attempts;
+  struct timeval last_report;
 } SolverCtx;
+
 
 static int domain_size(const SolverCtx *ctx, const Demand *d) {
   int in_id = d->input_id;
@@ -1117,20 +1295,111 @@ static int domain_size(const SolverCtx *ctx, const Demand *d) {
   return size;
 }
 
+static bool greedy_seed(SolverCtx *ctx) {
+  ctx->stability_cost = 0;
+
+  for (int depth = 0; depth < ctx->num_demands; depth++) {
+    int best_idx = -1;
+    int best_dom = 999;
+
+    for (int i = depth; i < ctx->num_demands; i++) {
+      int dom = domain_size(ctx, &ctx->demands[i]);
+      if (dom == 0) return false;
+      if (dom < best_dom) {
+        best_dom = dom;
+        best_idx = i;
+        if (dom == 1) break;
+      }
+    }
+
+    if (best_idx < 0) return false;
+
+    if (best_idx != depth) {
+      Demand tmp = ctx->demands[depth];
+      ctx->demands[depth] = ctx->demands[best_idx];
+      ctx->demands[best_idx] = tmp;
+
+      int atmp = ctx->assignment[depth];
+      ctx->assignment[depth] = ctx->assignment[best_idx];
+      ctx->assignment[best_idx] = atmp;
+    }
+
+    Demand d = ctx->demands[depth];
+    int in_id = d.input_id;
+    int ingress = d.ingress_block;
+    int egress = d.egress_block;
+
+    int prev_spine = ctx->prev_spine_for[in_id][egress];
+    uint64_t *used_row = bitset_row(ctx->used_spines_mask, in_id, ctx->spine_words);
+
+    int chosen = -1;
+    if (have_locks) {
+      int locked = lock_spine_for[in_id][egress];
+      if (locked >= 0) {
+        if (ctx->tmp_s2[locked][egress] != 0 && ctx->tmp_s2[locked][egress] != in_id) return false;
+        int owner = ctx->tmp_s1_owner[ingress][locked];
+        if (owner != 0 && owner != in_id) return false;
+        chosen = locked;
+      }
+    }
+
+    if (chosen < 0) {
+      for (int pass = 0; pass < 3 && chosen < 0; pass++) {
+        for (int s = 0; s < N; s++) {
+          bool is_prev = (prev_spine >= 0 && s == prev_spine);
+          bool already_used = bitset_test(used_row, s);
+
+          if (pass == 0 && !is_prev) continue;
+          if (pass == 1 && (is_prev || !already_used)) continue;
+          if (pass == 2 && (is_prev || already_used)) continue;
+
+          if (ctx->tmp_s2[s][egress] != 0 && ctx->tmp_s2[s][egress] != in_id) continue;
+          int owner = ctx->tmp_s1_owner[ingress][s];
+          if (owner != 0 && owner != in_id) continue;
+
+          chosen = s;
+          break;
+        }
+      }
+    }
+
+    if (chosen < 0) return false;
+
+    ctx->tmp_s2[chosen][egress] = in_id;
+    ctx->tmp_s1_owner[ingress][chosen] = in_id;
+    ctx->assignment[depth] = chosen;
+
+    int word_index = chosen >> 6;
+    uint64_t prev_word = used_row[word_index];
+    used_row[word_index] = prev_word | (1ULL << (chosen & 63));
+
+    bool is_change = (prev_spine >= 0 && chosen != prev_spine);
+    if (is_change) {
+      ctx->stability_cost += 1;
+    }
+  }
+
+  for (int i = 0; i < ctx->num_demands; i++) ctx->best_assignment[i] = ctx->assignment[i];
+  ctx->best_stability_cost = ctx->stability_cost;
+  return true;
+}
+
 static bool backtrack(SolverCtx *ctx, int depth) {
   // Time-based progress reporting (every 5 seconds)
-  static long long solve_attempts = 0;
-  static struct timeval last_report = {0, 0};
-  solve_attempts++;
+  ctx->solve_attempts++;
 
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  long elapsed_ms = (now.tv_sec - last_report.tv_sec) * 1000 +
-                    (now.tv_usec - last_report.tv_usec) / 1000;
-  if (elapsed_ms >= 5000 || last_report.tv_sec == 0) {  // Every 5 seconds
-    printf("[S] PROGRESS: %lld attempts in %lds (depth=%d/%d, best_cost=%d)\n",
-           solve_attempts, now.tv_sec - last_report.tv_sec, depth, ctx->num_demands, ctx->best_stability_cost);
-    last_report = now;
+  if ((ctx->solve_attempts & PROGRESS_CHECK_MASK) == 0) {
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    long elapsed_ms = (now.tv_sec - ctx->last_report.tv_sec) * 1000 +
+                      (now.tv_usec - ctx->last_report.tv_usec) / 1000;
+    if (elapsed_ms >= 5000) {  // Every 5 seconds
+      long long attempts_since = ctx->solve_attempts - ctx->last_report_attempts;
+      printf("[S] PROGRESS: %lld attempts in %lds (depth=%d/%d, best_cost=%d)\n",
+             attempts_since, elapsed_ms / 1000, depth, ctx->num_demands, ctx->best_stability_cost);
+      ctx->last_report = now;
+      ctx->last_report_attempts = ctx->solve_attempts;
+    }
   }
 
   // Optimize for stability only (branch cost removed for speed - see WOL-598)
@@ -1282,27 +1551,68 @@ static bool backtrack(SolverCtx *ctx, int depth) {
   return false;
 }
 
+static bool init_incremental_base(SolverCtx *ctx, const Demand *removed, int removed_count) {
+  memcpy(ctx->tmp_s2_storage, s2_to_s3_storage, sizeof(int) * (size_t)N * (size_t)TOTAL_BLOCKS);
+  memcpy(ctx->tmp_s1_owner_storage, s1_to_s2_storage, sizeof(int) * (size_t)TOTAL_BLOCKS * (size_t)N);
+
+  int *use_count = solver_scratch.spine_use_count;
+  memset(use_count, 0, sizeof(int) * ((size_t)MAX_PORTS + 1) * (size_t)N);
+  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      int s = current_spine_for[in_id][e];
+      if (s >= 0) {
+        use_count[(size_t)in_id * (size_t)N + (size_t)s]++;
+      }
+    }
+  }
+
+  for (int i = 0; i < removed_count; i++) {
+    int in_id = removed[i].input_id;
+    int e = removed[i].egress_block;
+    int s = current_spine_for[in_id][e];
+    if (s < 0) return false;
+    if (ctx->tmp_s2[s][e] != in_id) return false;
+
+    ctx->tmp_s2[s][e] = 0;
+
+    size_t idx = (size_t)in_id * (size_t)N + (size_t)s;
+    if (use_count[idx] <= 0) return false;
+    use_count[idx]--;
+    if (use_count[idx] == 0) {
+      int ingress = get_block(in_id);
+      ctx->tmp_s1_owner[ingress][s] = 0;
+    }
+  }
+
+  memset(ctx->used_spines_mask, 0, sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)ctx->spine_words);
+  for (int s = 0; s < N; s++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      int in_id = ctx->tmp_s2[s][e];
+      if (in_id > 0) {
+        bitset_set(bitset_row(ctx->used_spines_mask, in_id, ctx->spine_words), s);
+      }
+    }
+  }
+
+  return true;
+}
+
 static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best_cost) {
   int active_count = 0;
-  int max_demands = (int)g_max_demands;
-  int block_words = bitset_words(TOTAL_BLOCKS);
-  int spine_words = bitset_words(N);
+  if (!solver_scratch.initialized) return false;
 
-  Demand *demands = calloc((size_t)max_demands, sizeof(Demand));
-  int *active_inputs = malloc(sizeof(int) * ((size_t)MAX_PORTS + 1));
-  uint64_t *need_blocks_mask = calloc(((size_t)MAX_PORTS + 1) * (size_t)block_words, sizeof(uint64_t));
-  if (!demands || !active_inputs || !need_blocks_mask) {
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
-    return false;
-  }
+  int max_demands = solver_scratch.max_demands;
+  int block_words = solver_scratch.block_words;
+  int spine_words = solver_scratch.spine_words;
+
+  Demand *demands = solver_scratch.demands;
+  int *active_inputs = solver_scratch.active_inputs;
+  uint64_t *need_blocks_mask = solver_scratch.need_blocks_mask;
+
+  memset(need_blocks_mask, 0, sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)block_words);
 
   int num_demands = build_demands(demands, max_demands, active_inputs, &active_count, need_blocks_mask, block_words);
   if (num_demands < 0) {
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
 
@@ -1310,9 +1620,6 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
 
   if (!validate_locks_against_demands(need_blocks_mask, block_words)) {
     printf("  FAIL: Locked path conflict\n");
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
 
@@ -1328,26 +1635,18 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
       free_int_matrix(out_solution->s2, out_solution->s2_storage);
       free(out_solution->s3_owner);
       free(out_solution->s3_spine);
-      free(demands);
-      free(active_inputs);
-      free(need_blocks_mask);
       return false;
     }
     for (int p = 1; p <= MAX_PORTS; p++) out_solution->s3_spine[p] = -1;
     *out_best_cost = 0;
     last_stability_cost = 0;
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
+    last_solve_nodes = 0;
     return true;
   }
 
   if (!quick_capacity_check(need_blocks_mask, block_words)) {
     printf("  FAIL: No solution exists under Clos trunk capacity constraints\n");
     print_unsat_reason(need_blocks_mask, block_words);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
 
@@ -1356,27 +1655,20 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
 
   ctx.demands = demands;
   ctx.num_demands = num_demands;
-  ctx.tmp_s2 = alloc_int_matrix(N, TOTAL_BLOCKS, &ctx.tmp_s2_storage);
-  ctx.tmp_s1_owner = alloc_int_matrix(TOTAL_BLOCKS, N, &ctx.tmp_s1_owner_storage);
-  ctx.used_spines_mask = calloc(((size_t)MAX_PORTS + 1) * (size_t)spine_words, sizeof(uint64_t));
+  ctx.tmp_s2 = solver_scratch.tmp_s2;
+  ctx.tmp_s2_storage = solver_scratch.tmp_s2_storage;
+  ctx.tmp_s1_owner = solver_scratch.tmp_s1_owner;
+  ctx.tmp_s1_owner_storage = solver_scratch.tmp_s1_owner_storage;
+  ctx.used_spines_mask = solver_scratch.used_spines_mask;
   ctx.spine_words = spine_words;
-  ctx.assignment = malloc(sizeof(int) * (size_t)max_demands);
-  ctx.best_assignment = malloc(sizeof(int) * (size_t)max_demands);
-  ctx.prev_spine_for = alloc_int_matrix(MAX_PORTS + 1, TOTAL_BLOCKS, &ctx.prev_spine_for_storage);
+  ctx.assignment = solver_scratch.assignment;
+  ctx.best_assignment = solver_scratch.best_assignment;
+  ctx.prev_spine_for = solver_scratch.prev_spine_for;
+  ctx.prev_spine_for_storage = solver_scratch.prev_spine_for_storage;
 
-  if (!ctx.tmp_s2 || !ctx.tmp_s1_owner || !ctx.used_spines_mask || !ctx.assignment ||
-      !ctx.best_assignment || !ctx.prev_spine_for) {
-    free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-    free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-    free(ctx.used_spines_mask);
-    free(ctx.assignment);
-    free(ctx.best_assignment);
-    free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
-    return false;
-  }
+  memset(ctx.tmp_s2_storage, 0, sizeof(int) * (size_t)N * (size_t)TOTAL_BLOCKS);
+  memset(ctx.tmp_s1_owner_storage, 0, sizeof(int) * (size_t)TOTAL_BLOCKS * (size_t)N);
+  memset(ctx.used_spines_mask, 0, sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)spine_words);
   memset(ctx.assignment, 0, sizeof(int) * (size_t)max_demands);
   memset(ctx.best_assignment, 0, sizeof(int) * (size_t)max_demands);
 
@@ -1403,40 +1695,46 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
     }
   }
 
+  // Greedy seed to tighten initial bound (may reorder demands)
+  memcpy(solver_scratch.demands_backup, demands, sizeof(Demand) * (size_t)num_demands);
+  bool greedy_ok = greedy_seed(&ctx);
+  if (!greedy_ok) {
+    memcpy(demands, solver_scratch.demands_backup, sizeof(Demand) * (size_t)num_demands);
+    ctx.best_stability_cost = 999999;
+  }
+
+  // Reset working state before backtracking
+  memset(ctx.tmp_s2_storage, 0, sizeof(int) * (size_t)N * (size_t)TOTAL_BLOCKS);
+  memset(ctx.tmp_s1_owner_storage, 0, sizeof(int) * (size_t)TOTAL_BLOCKS * (size_t)N);
+  memset(ctx.used_spines_mask, 0, sizeof(uint64_t) * ((size_t)MAX_PORTS + 1) * (size_t)spine_words);
+  memset(ctx.assignment, 0, sizeof(int) * (size_t)max_demands);
+  ctx.stability_cost = 0;
+
+  // Initialize per-solve progress reporting baseline
+  ctx.solve_attempts = 0;
+  ctx.last_report_attempts = 0;
+  gettimeofday(&ctx.last_report, NULL);
+
   // Run backtracking search (optimizing for stability only)
-  (void)backtrack(&ctx, 0);
+  if (ctx.best_stability_cost != 0) {
+    (void)backtrack(&ctx, 0);
+  }
 
   if (ctx.best_stability_cost == 999999) {
     printf("  FAIL: No solution found (unexpected after capacity check)\n");
     print_unsat_reason(need_blocks_mask, block_words);
-    free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-    free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-    free(ctx.used_spines_mask);
-    free(ctx.assignment);
-    free(ctx.best_assignment);
-    free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
 
   // Store stability cost for JSON output
   last_stability_cost = ctx.best_stability_cost;
+  last_solve_nodes = ctx.solve_attempts;
+  total_solve_nodes += ctx.solve_attempts;
 
   // Check strict stability mode
   if (strict_stability && ctx.best_stability_cost > 0) {
     printf("  FAIL: Strict stability enabled - would require rerouting %d existing connections\n",
            ctx.best_stability_cost);
-    free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-    free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-    free(ctx.used_spines_mask);
-    free(ctx.assignment);
-    free(ctx.best_assignment);
-    free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
 
@@ -1452,15 +1750,6 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
     free_int_matrix(sol.s2, sol.s2_storage);
     free(sol.s3_owner);
     free(sol.s3_spine);
-    free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-    free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-    free(ctx.used_spines_mask);
-    free(ctx.assignment);
-    free(ctx.best_assignment);
-    free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
   for (int p = 1; p <= MAX_PORTS; p++) sol.s3_spine[p] = -1;
@@ -1473,15 +1762,6 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
     free_int_matrix(sol.s2, sol.s2_storage);
     free(sol.s3_owner);
     free(sol.s3_spine);
-    free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-    free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-    free(ctx.used_spines_mask);
-    free(ctx.assignment);
-    free(ctx.best_assignment);
-    free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-    free(demands);
-    free(active_inputs);
-    free(need_blocks_mask);
     return false;
   }
   for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
@@ -1519,15 +1799,6 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
       free_int_matrix(sol.s2, sol.s2_storage);
       free(sol.s3_owner);
       free(sol.s3_spine);
-      free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-      free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-      free(ctx.used_spines_mask);
-      free(ctx.assignment);
-      free(ctx.best_assignment);
-      free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-      free(demands);
-      free(active_inputs);
-      free(need_blocks_mask);
       return false;
     }
 
@@ -1538,15 +1809,6 @@ static bool solve_and_build_solution(FabricSolution *out_solution, int *out_best
   *out_solution = sol;
   *out_best_cost = 0;  // Branch cost no longer tracked (see WOL-598)
   free_int_matrix(spine_for, spine_for_storage);
-  free_int_matrix(ctx.tmp_s2, ctx.tmp_s2_storage);
-  free_int_matrix(ctx.tmp_s1_owner, ctx.tmp_s1_owner_storage);
-  free(ctx.used_spines_mask);
-  free(ctx.assignment);
-  free(ctx.best_assignment);
-  free_int_matrix(ctx.prev_spine_for, ctx.prev_spine_for_storage);
-  free(demands);
-  free(active_inputs);
-  free(need_blocks_mask);
   return true;
 }
 
@@ -1556,6 +1818,19 @@ static void commit_solution(const FabricSolution *sol) {
   memcpy(s2_to_s3_storage, sol->s2_storage, sizeof(int) * (size_t)N * (size_t)TOTAL_BLOCKS);
   memcpy(s3_port_owner, sol->s3_owner, sizeof(int) * ((size_t)MAX_PORTS + 1));
   memcpy(s3_port_spine, sol->s3_spine, sizeof(int) * ((size_t)MAX_PORTS + 1));
+  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      current_spine_for[in_id][e] = -1;
+    }
+  }
+  for (int s = 0; s < N; s++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      int in_id = s2_to_s3[s][e];
+      if (in_id > 0) {
+        current_spine_for[in_id][e] = s;
+      }
+    }
+  }
 }
 
 static bool repack_fabric_and_commit(void) {
@@ -1582,6 +1857,8 @@ static bool repack_fabric_and_commit(void) {
   last_solve_us = solve_us;
   total_solve_us += solve_us;
   repack_count++;
+  last_repair_us = 0;
+  last_repair_nodes = 0;
   double solve_ms = solve_us / 1000.0;
   double total_ms = total_solve_us / 1000.0;
 
@@ -1627,17 +1904,200 @@ static bool repack_fabric_and_commit(void) {
   return true;
 }
 
+static void compute_lock_counts_from_demands(void) {
+  last_locked_demands = 0;
+  last_locked_outputs = 0;
+  if (!have_locks) return;
+
+  for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      if (demand_count[in_id][e] > 0 && lock_spine_for[in_id][e] >= 0) {
+        last_locked_demands++;
+      }
+    }
+  }
+
+  for (int p = 1; p <= MAX_PORTS; p++) {
+    int owner = desired_owner[p];
+    if (owner <= 0) continue;
+    int e = get_block(p);
+    if (lock_spine_for[owner][e] >= 0) {
+      last_locked_outputs++;
+    }
+  }
+}
+
+static bool incremental_repair(const Demand *added, int added_count, const Demand *removed, int removed_count,
+                               const PortEdit *edits, int edit_count) {
+  if (!incremental_mode) return false;
+
+  repair_attempts++;
+  long long start_us = now_us();
+  long long repair_nodes = 0;
+
+  // If locks exist, ensure current assignments satisfy them for existing demands
+  if (have_locks) {
+    for (int in_id = 1; in_id <= MAX_PORTS; in_id++) {
+      for (int e = 0; e < TOTAL_BLOCKS; e++) {
+        if (demand_count[in_id][e] <= 0) continue;
+        int locked = lock_spine_for[in_id][e];
+        if (locked >= 0 && current_spine_for[in_id][e] >= 0 && current_spine_for[in_id][e] != locked) {
+          repair_failures++;
+          return false;
+        }
+      }
+    }
+  }
+
+  SolverCtx ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.demands = (Demand *)added;
+  ctx.num_demands = added_count;
+  ctx.tmp_s2 = solver_scratch.tmp_s2;
+  ctx.tmp_s2_storage = solver_scratch.tmp_s2_storage;
+  ctx.tmp_s1_owner = solver_scratch.tmp_s1_owner;
+  ctx.tmp_s1_owner_storage = solver_scratch.tmp_s1_owner_storage;
+  ctx.used_spines_mask = solver_scratch.used_spines_mask;
+  ctx.spine_words = solver_scratch.spine_words;
+  ctx.assignment = solver_scratch.assignment;
+  ctx.best_assignment = solver_scratch.best_assignment;
+  ctx.prev_spine_for = solver_scratch.prev_spine_for;
+  ctx.prev_spine_for_storage = solver_scratch.prev_spine_for_storage;
+
+  memset(ctx.assignment, 0, sizeof(int) * (size_t)solver_scratch.max_demands);
+  memset(ctx.best_assignment, 0, sizeof(int) * (size_t)solver_scratch.max_demands);
+  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) ctx.prev_spine_for[in_id][e] = -1;
+  }
+
+  if (!init_incremental_base(&ctx, removed, removed_count)) {
+    repair_failures++;
+    return false;
+  }
+
+  bool have_solution = true;
+  if (added_count > 0) {
+    ctx.stability_cost = 0;
+    ctx.best_stability_cost = 999999;
+    bool greedy_ok = greedy_seed(&ctx);
+
+    if (!(greedy_ok && ctx.best_stability_cost == 0)) {
+      if (!init_incremental_base(&ctx, removed, removed_count)) {
+        repair_failures++;
+        return false;
+      }
+
+      ctx.stability_cost = 0;
+      ctx.best_stability_cost = 999999;
+      ctx.solve_attempts = 0;
+      ctx.last_report_attempts = 0;
+      gettimeofday(&ctx.last_report, NULL);
+
+      (void)backtrack(&ctx, 0);
+      repair_nodes = ctx.solve_attempts;
+
+      if (ctx.best_stability_cost == 999999) {
+        repair_failures++;
+        return false;
+      }
+
+      if (!init_incremental_base(&ctx, removed, removed_count)) {
+        repair_failures++;
+        return false;
+      }
+
+      for (int i = 0; i < added_count; i++) {
+        Demand d = ctx.demands[i];
+        int s = ctx.best_assignment[i];
+        ctx.tmp_s2[s][d.egress_block] = d.input_id;
+        ctx.tmp_s1_owner[d.ingress_block][s] = d.input_id;
+      }
+    }
+  }
+
+  if (!have_solution) {
+    repair_failures++;
+    return false;
+  }
+
+  // Validate that all edited ports can be assigned
+  for (int i = 0; i < edit_count; i++) {
+    int p = edits[i].port;
+    int owner = desired_owner[p];
+    if (owner == 0) continue;
+    int e = get_block(p);
+    if (find_spine_for_input_egress(owner, e, ctx.tmp_s2) < 0) {
+      repair_failures++;
+      return false;
+    }
+  }
+
+  // Commit Stage1/Stage2
+  memcpy(s1_to_s2_storage, ctx.tmp_s1_owner_storage, sizeof(int) * (size_t)TOTAL_BLOCKS * (size_t)N);
+  memcpy(s2_to_s3_storage, ctx.tmp_s2_storage, sizeof(int) * (size_t)N * (size_t)TOTAL_BLOCKS);
+
+  // Update Stage3 for edited ports only
+  for (int i = 0; i < edit_count; i++) {
+    int p = edits[i].port;
+    int owner = desired_owner[p];
+    s3_port_owner[p] = owner;
+    if (owner == 0) {
+      s3_port_spine[p] = -1;
+      continue;
+    }
+    int e = get_block(p);
+    int s = find_spine_for_input_egress(owner, e, s2_to_s3);
+    if (s < 0) {
+      repair_failures++;
+      return false;
+    }
+    s3_port_spine[p] = s;
+  }
+
+  // Refresh current spine map
+  for (int in_id = 0; in_id <= MAX_PORTS; in_id++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      current_spine_for[in_id][e] = -1;
+    }
+  }
+  for (int s = 0; s < N; s++) {
+    for (int e = 0; e < TOTAL_BLOCKS; e++) {
+      int in_id = s2_to_s3[s][e];
+      if (in_id > 0) {
+        current_spine_for[in_id][e] = s;
+      }
+    }
+  }
+
+  if (!validate_fabric(true)) {
+    printf("  FATAL: Fabric validation failed after incremental repair\n");
+    repair_failures++;
+    return false;
+  }
+
+  last_stability_cost = 0;
+  last_rerouted_outputs = 0;
+  last_solve_us = 0;
+  last_repair_us = now_us() - start_us;
+  total_repair_us += last_repair_us;
+  repair_count++;
+  last_repair_nodes = repair_nodes;
+  total_repair_nodes += repair_nodes;
+
+  compute_lock_counts_from_demands();
+
+  printf("  REPAIR OK: incremental solve %.3f ms (total %.3f ms)\n",
+         last_repair_us / 1000.0, total_repair_us / 1000.0);
+
+  return true;
+}
+
 // --- COMMAND APPLICATION (transactional) ------------------------------------
 //
 // We treat each request as an edit to desired_owner[].
 // Then we try to repack globally.
 // If repack fails, we rollback desired_owner[] for that request.
 //
-
-typedef struct {
-  int port;
-  int prev_owner;
-} PortEdit;
 
 static bool apply_route_request(int input_id, int *targets, int num_targets) {
   if (!is_valid_port(input_id)) {
@@ -1679,13 +2139,64 @@ static bool apply_route_request(int input_id, int *targets, int num_targets) {
   }
 
   // Apply edits
+  Demand *added = solver_scratch.demands;
+  Demand *removed = solver_scratch.demands_backup;
+  int added_count = 0;
+  int removed_count = 0;
   for (int i = 0; i < edit_count; i++) {
-    desired_owner[edits[i].port] = input_id;
+    int p = edits[i].port;
+    int prev = edits[i].prev_owner;
+    int e = get_block(p);
+
+    if (prev > 0) {
+      int *cnt = &demand_count[prev][e];
+      if (*cnt > 0) {
+        (*cnt)--;
+        if (*cnt == 0) {
+          removed[removed_count++] = (Demand){ .input_id = prev, .ingress_block = get_block(prev), .egress_block = e };
+        }
+      }
+    }
+
+    int *cnt = &demand_count[input_id][e];
+    if (*cnt == 0) {
+      added[added_count++] = (Demand){ .input_id = input_id, .ingress_block = get_block(input_id), .egress_block = e };
+    }
+    (*cnt)++;
+    desired_owner[p] = input_id;
   }
 
   // Repack
   printf(">> ROUTE: Input %d to %d output(s)\n", input_id, num_targets);
+  if (incremental_mode) {
+    if (incremental_repair(added, added_count, removed, removed_count, edits, edit_count)) {
+      free(edits);
+      return true;
+    }
+    last_repair_us = 0;
+    if (strict_stability) {
+      printf("  FAIL: Strict stability enabled - incremental repair could not be realized without rerouting\n");
+      printf("  ROLLBACK: route could not be realized\n");
+      for (int i = 0; i < edit_count; i++) {
+        int p = edits[i].port;
+        int prev = edits[i].prev_owner;
+        int e = get_block(p);
+        int cur = desired_owner[p];
+        if (cur > 0) {
+          demand_count[cur][e]--;
+        }
+        if (prev > 0) {
+          demand_count[prev][e]++;
+        }
+        desired_owner[p] = prev;
+      }
+      free(edits);
+      return false;
+    }
+  }
+
   if (repack_fabric_and_commit()) {
+    last_repair_us = 0;
     free(edits);
     return true;
   }
@@ -1693,7 +2204,17 @@ static bool apply_route_request(int input_id, int *targets, int num_targets) {
   // Rollback
   printf("  ROLLBACK: route could not be realized\n");
   for (int i = 0; i < edit_count; i++) {
-    desired_owner[edits[i].port] = edits[i].prev_owner;
+    int p = edits[i].port;
+    int prev = edits[i].prev_owner;
+    int e = get_block(p);
+    int cur = desired_owner[p];
+    if (cur > 0) {
+      demand_count[cur][e]--;
+    }
+    if (prev > 0) {
+      demand_count[prev][e]++;
+    }
+    desired_owner[p] = prev;
   }
   free(edits);
 
@@ -1730,19 +2251,75 @@ static bool apply_clear_request(int input_id) {
 
   printf(">> CLEAR: Input %d (removing %d output(s))\n", input_id, edit_count);
 
+  Demand *added = solver_scratch.demands;
+  Demand *removed = solver_scratch.demands_backup;
+  int added_count = 0;
+  int removed_count = 0;
+
   for (int i = 0; i < edit_count; i++) {
-    desired_owner[edits[i].port] = 0;
+    int p = edits[i].port;
+    int prev = edits[i].prev_owner;
+    int e = get_block(p);
+
+    if (prev > 0) {
+      int *cnt = &demand_count[prev][e];
+      if (*cnt > 0) {
+        (*cnt)--;
+        if (*cnt == 0) {
+          removed[removed_count++] = (Demand){ .input_id = prev, .ingress_block = get_block(prev), .egress_block = e };
+        }
+      }
+    }
+    desired_owner[p] = 0;
   }
 
   // Clearing should only make things easier, but keep it transactional anyway
+  if (incremental_mode) {
+    if (incremental_repair(added, added_count, removed, removed_count, edits, edit_count)) {
+      free(edits);
+      return true;
+    }
+    last_repair_us = 0;
+    if (strict_stability) {
+      printf("  FAIL: Strict stability enabled - incremental repair could not be realized without rerouting\n");
+      printf("  ROLLBACK: unexpected failure after clear\n");
+      for (int i = 0; i < edit_count; i++) {
+        int p = edits[i].port;
+        int prev = edits[i].prev_owner;
+        int e = get_block(p);
+        int cur = desired_owner[p];
+        if (cur > 0) {
+          demand_count[cur][e]--;
+        }
+        if (prev > 0) {
+          demand_count[prev][e]++;
+        }
+        desired_owner[p] = prev;
+      }
+      free(edits);
+      return false;
+    }
+  }
+
   if (repack_fabric_and_commit()) {
+    last_repair_us = 0;
     free(edits);
     return true;
   }
 
   printf("  ROLLBACK: unexpected failure after clear\n");
   for (int i = 0; i < edit_count; i++) {
-    desired_owner[edits[i].port] = edits[i].prev_owner;
+    int p = edits[i].port;
+    int prev = edits[i].prev_owner;
+    int e = get_block(p);
+    int cur = desired_owner[p];
+    if (cur > 0) {
+      demand_count[cur][e]--;
+    }
+    if (prev > 0) {
+      demand_count[prev][e]++;
+    }
+    desired_owner[p] = prev;
   }
   free(edits);
 
@@ -1849,6 +2426,10 @@ int main(int argc, char *argv[]) {
       strict_stability = true;
       continue;
     }
+    if (strcmp(argv[i], "--incremental") == 0) {
+      incremental_mode = true;
+      continue;
+    }
     if (strcmp(argv[i], "--locks") == 0 && i + 1 < argc) {
       locks_path = argv[++i];
       continue;
@@ -1863,7 +2444,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!routes_path) {
-    printf("Usage: %s <routes.txt> [--size N] [--json state.json] [--previous-state prev.json] [--locks locks.json] [--strict-stability]\n", argv[0]);
+    printf("Usage: %s <routes.txt> [--size N] [--json state.json] [--previous-state prev.json] [--locks locks.json] [--strict-stability] [--incremental]\n", argv[0]);
     return 1;
   }
 

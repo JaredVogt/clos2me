@@ -20,11 +20,21 @@ export const fabricStateSchema = z.object({
   })).optional(),
   solve_ms: z.number().optional(),
   solve_total_ms: z.number().optional(),
+  solve_nodes: z.number().optional(),
+  solve_nodes_total: z.number().optional(),
   repack_count: int.optional(),
+  repair_count: int.optional(),
+  repair_attempts: int.optional(),
+  repair_failures: int.optional(),
+  repair_ms: z.number().optional(),
+  repair_total_ms: z.number().optional(),
+  repair_nodes: z.number().optional(),
+  repair_nodes_total: z.number().optional(),
   reroutes_demands: int.optional(),
   reroutes_outputs: int.optional(),
   locked_demands: int.optional(),
-  locked_outputs: int.optional()
+  locked_outputs: int.optional(),
+  incremental: z.boolean().optional()
 })
 
 export type FabricState = z.infer<typeof fabricStateSchema>

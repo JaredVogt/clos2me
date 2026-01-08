@@ -4,6 +4,7 @@ import type { LogEntry, LogLevel } from "./schema"
 type Props = {
   entries: LogEntry[]
   fabricSummary: string | null
+  runSummary: string | null
   level: LogLevel
   onLevelChange: (level: LogLevel) => void
   persistHistory: boolean
@@ -16,6 +17,7 @@ const levelOrder: LogLevel[] = ['summary', 'route', 'detail']
 export function LogPanel({
   entries,
   fabricSummary,
+  runSummary,
   level,
   onLevelChange,
   persistHistory,
@@ -25,7 +27,13 @@ export function LogPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const [summaryHeight, setSummaryHeight] = useState(150)
+  const [hasUserResized, setHasUserResized] = useState(false)
   const [isResizingSummary, setIsResizingSummary] = useState(false)
+  const lastPanelHeightRef = useRef<number | null>(null)
+
+  const MIN_SUMMARY_HEIGHT = 50
+  const MIN_LOG_HEIGHT = 120
+  const SUMMARY_HANDLE_HEIGHT = 6
 
   // Filter entries based on selected level
   // 'summary' shows only summary, 'route' shows summary+route, 'detail' shows all
@@ -49,7 +57,14 @@ export function LogPanel({
       if (!panelRef.current) return
       const panelRect = panelRef.current.getBoundingClientRect()
       const newHeight = panelRect.bottom - e.clientY
-      setSummaryHeight(Math.max(50, Math.min(400, newHeight)))
+      const headerEl = panelRef.current.querySelector('.logHeader') as HTMLElement | null
+      const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0
+      const maxHeight = Math.max(
+        MIN_SUMMARY_HEIGHT,
+        panelRect.height - headerHeight - SUMMARY_HANDLE_HEIGHT - MIN_LOG_HEIGHT
+      )
+      setSummaryHeight(Math.max(MIN_SUMMARY_HEIGHT, Math.min(maxHeight, newHeight)))
+      setHasUserResized(true)
     }
 
     const handleMouseUp = () => {
@@ -68,6 +83,40 @@ export function LogPanel({
       document.body.style.userSelect = ''
     }
   }, [isResizingSummary])
+
+  // Default summary height to 1/3 of available space (2/3 reserved for log)
+  useEffect(() => {
+    if (!panelRef.current) return
+
+    const computeDefault = () => {
+      if (!panelRef.current) return
+      const panelHeight = panelRef.current.clientHeight
+      const headerEl = panelRef.current.querySelector('.logHeader') as HTMLElement | null
+      const headerHeight = headerEl ? headerEl.getBoundingClientRect().height : 0
+      const available = Math.max(0, panelHeight - headerHeight - SUMMARY_HANDLE_HEIGHT)
+      const maxSummary = Math.max(
+        MIN_SUMMARY_HEIGHT,
+        available - MIN_LOG_HEIGHT
+      )
+      const target = Math.max(MIN_SUMMARY_HEIGHT, Math.min(maxSummary, Math.floor(available / 3)))
+      setSummaryHeight(target)
+      lastPanelHeightRef.current = panelHeight
+    }
+
+    if (!hasUserResized) {
+      computeDefault()
+    }
+
+    const ro = new ResizeObserver(() => {
+      if (hasUserResized) return
+      computeDefault()
+    })
+    ro.observe(panelRef.current)
+
+    return () => {
+      ro.disconnect()
+    }
+  }, [hasUserResized])
 
   // Group entries by run (using timestamp proximity)
   const groupedEntries = useMemo(() => {
@@ -150,14 +199,15 @@ export function LogPanel({
         )}
       </div>
 
-      {fabricSummary && (
+      {(runSummary || fabricSummary) && (
         <>
           <div
             className="summaryResizeHandle"
             onMouseDown={() => setIsResizingSummary(true)}
           />
           <div className="fabricSummary" style={{ height: summaryHeight }}>
-            <pre>{fabricSummary}</pre>
+            {runSummary && <div className="runSummary">Run Summary: {runSummary}</div>}
+            {fabricSummary && <pre>{fabricSummary}</pre>}
           </div>
         </>
       )}

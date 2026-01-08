@@ -7,6 +7,124 @@ import "./index.css"
 
 type LockMap = Record<number, Record<number, number>>
 type LockPayload = { input: number; egressBlock: number; spine: number }
+type RouteMap = Record<number, number[]>
+type PreserveMode = "none" | "all" | "locked"
+
+const normalizeOutputs = (outputs: number[]) => {
+  const unique = Array.from(new Set(outputs))
+  unique.sort((a, b) => a - b)
+  return unique
+}
+
+const parseRoutesText = (text: string): RouteMap => {
+  const routes: Record<number, Set<number>> = {}
+  const lines = text.split(/\r?\n/)
+  for (const rawLine of lines) {
+    const line = rawLine.split('#')[0].trim()
+    if (!line) continue
+    const parts = line.split('.').map(part => part.trim()).filter(Boolean)
+    if (parts.length < 2) continue
+    const inputId = Number(parts[0])
+    if (!Number.isFinite(inputId) || inputId <= 0) continue
+    const outputs = routes[inputId] || new Set<number>()
+    for (let i = 1; i < parts.length; i++) {
+      const outputId = Number(parts[i])
+      if (!Number.isFinite(outputId) || outputId <= 0) continue
+      outputs.add(outputId)
+    }
+    routes[inputId] = outputs
+  }
+
+  const parsed: RouteMap = {}
+  for (const [inputId, outputs] of Object.entries(routes)) {
+    parsed[Number(inputId)] = normalizeOutputs(Array.from(outputs))
+  }
+  return parsed
+}
+
+const outputsEqual = (a: number[], b: number[]) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+const buildLockedRoutes = (currentState: FabricState, locks: LockMap) => {
+  const lockedRoutes: RouteMap = {}
+  const lockedOutputOwners = new Map<number, number>()
+  const lockedInputs = new Set<number>(Object.keys(locks).map(key => Number(key)))
+
+  for (let port = 1; port <= currentState.MAX_PORTS; port++) {
+    const owner = currentState.s3_port_owner[port]
+    if (!owner || owner <= 0) continue
+    const locksForInput = locks[owner]
+    if (!locksForInput) continue
+    const egressBlock = Math.floor((port - 1) / currentState.N)
+    if (locksForInput[egressBlock] === undefined) continue
+    if (!lockedRoutes[owner]) lockedRoutes[owner] = []
+    lockedRoutes[owner].push(port)
+    lockedOutputOwners.set(port, owner)
+  }
+
+  for (const [inputId, outputs] of Object.entries(lockedRoutes)) {
+    lockedRoutes[Number(inputId)] = normalizeOutputs(outputs)
+  }
+
+  return { lockedRoutes, lockedOutputOwners, lockedInputs }
+}
+
+const findLockedConflicts = (
+  routes: RouteMap,
+  lockedRoutes: RouteMap,
+  lockedOutputOwners: Map<number, number>,
+  lockedInputs: Set<number>
+) => {
+  const inputConflicts = new Set<number>()
+  const outputConflicts = new Set<number>()
+
+  for (const [inputIdRaw, outputs] of Object.entries(routes)) {
+    const inputId = Number(inputIdRaw)
+    const lockedOutputs = lockedRoutes[inputId]
+    if (lockedOutputs) {
+      if (!outputsEqual(outputs, lockedOutputs)) {
+        inputConflicts.add(inputId)
+      }
+    } else if (lockedInputs.has(inputId)) {
+      inputConflicts.add(inputId)
+    }
+
+    for (const output of outputs) {
+      const lockedOwner = lockedOutputOwners.get(output)
+      if (lockedOwner && lockedOwner !== inputId) {
+        outputConflicts.add(output)
+      }
+    }
+  }
+
+  return {
+    inputConflicts: Array.from(inputConflicts).sort((a, b) => a - b),
+    outputConflicts: Array.from(outputConflicts).sort((a, b) => a - b)
+  }
+}
+
+const mergeLockedRoutes = (routes: RouteMap, lockedRoutes: RouteMap) => {
+  const merged: RouteMap = { ...routes }
+  for (const [inputId, outputs] of Object.entries(lockedRoutes)) {
+    merged[Number(inputId)] = outputs
+  }
+  return merged
+}
+
+const extractFabricSummary = (entries: LogEntry[]) => {
+  const summaryIndex = entries.findIndex(entry => entry.message.includes('=== Fabric Summary ==='))
+  if (summaryIndex === -1) {
+    return { entries, fabricSummary: null as string | null }
+  }
+  const fabricSummary = entries[summaryIndex].message
+  const nextEntries = [...entries.slice(0, summaryIndex), ...entries.slice(summaryIndex + 1)]
+  return { entries: nextEntries, fabricSummary }
+}
 
 export default function App() {
   const [state, setState] = useState<FabricState | null>(null)
@@ -18,6 +136,7 @@ export default function App() {
   const [routeFiles, setRouteFiles] = useState<string[]>([])
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [solverRunning, setSolverRunning] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
 
   // Dropdown state
@@ -26,9 +145,14 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("")
   const [showNewInput, setShowNewInput] = useState(false)
   const [newFileName, setNewFileName] = useState("")
+  const [showSaveAsInput, setShowSaveAsInput] = useState(false)
+  const [saveAsName, setSaveAsName] = useState("")
   const dropdownRef = useRef<HTMLDivElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const newInputRef = useRef<HTMLInputElement>(null)
+  const saveAsInputRef = useRef<HTMLInputElement>(null)
+  const skipNewInputBlurRef = useRef(false)
+  const skipSaveAsInputBlurRef = useRef(false)
 
   // Route creation state
   const [pendingInput, setPendingInput] = useState<number | null>(null)
@@ -42,6 +166,7 @@ export default function App() {
 
   // Stability mode
   const [strictStability, setStrictStability] = useState(false)
+  const [incremental, setIncremental] = useState(false)
 
   // Crossbar size (default 10)
   const [crossbarSize, setCrossbarSize] = useState(10)
@@ -53,15 +178,19 @@ export default function App() {
   // Solver log state
   const [solverLog, setSolverLog] = useState<LogEntry[]>([])
   const [fabricSummary, setFabricSummary] = useState<string | null>(null)
+  const [runSummary, setRunSummary] = useState<string | null>(null)
   const [logLevel, setLogLevel] = useState<LogLevel>('summary')
   const [persistLog, setPersistLog] = useState(false)
-  const [preserveState, setPreserveState] = useState(true) // Preserve routing state across file switches
+  const [preserveMode, setPreserveMode] = useState<PreserveMode>("all")
   const [logPanelWidth, setLogPanelWidth] = useState(400)
   const [isResizing, setIsResizing] = useState(false)
 
   // Hover highlight state (for lock hover)
   const [hoveredInput, setHoveredInput] = useState<number | null>(null)
   const [hoveredFromLock, setHoveredFromLock] = useState(false)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const runAbortRef = useRef<AbortController | null>(null)
+  const cancelRequestedRef = useRef(false)
 
   const inputs = useMemo(() => (state ? deriveInputs(state) : []), [state])
 
@@ -94,6 +223,34 @@ export default function App() {
     }
     return payload
   }, [])
+
+  const formatCount = useCallback((value: string | null) => {
+    if (!value) return "unknown"
+    return value.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+  }, [])
+
+  const formatRunSummary = useCallback((summary: {
+    attempts: string | null
+    elapsedSeconds: number
+    depth?: number | null
+    maxDepth?: number | null
+    bestCost?: number | null
+    lastStatsLine?: string | null
+  }) => {
+    const attemptsText = formatCount(summary.attempts)
+    const details = []
+    if (summary.depth !== null && summary.depth !== undefined && summary.maxDepth !== null && summary.maxDepth !== undefined) {
+      details.push(`depth ${summary.depth}/${summary.maxDepth}`)
+    }
+    if (summary.bestCost !== null && summary.bestCost !== undefined) {
+      details.push(`best_cost=${summary.bestCost}`)
+    }
+    const base = `Cancelled after ${attemptsText} attempts in ${summary.elapsedSeconds}s${details.length ? ` (${details.join(", ")})` : ""}`
+    if (summary.lastStatsLine) {
+      return `${base} · ${summary.lastStatsLine}`
+    }
+    return base
+  }, [formatCount])
 
   // Debug: log state changes
   useEffect(() => {
@@ -255,7 +412,10 @@ export default function App() {
   // Submit a new route to the API
   async function submitRoute(inputId: number, outputIds: number[]) {
     setError(null)
+    cancelRequestedRef.current = false
+    setRunSummary(null)
     setLoading(true)
+    setSolverRunning(true)
 
     // Derive current routes directly from state to avoid race conditions
     // (the `routes` state may be stale if useEffect hasn't run yet)
@@ -283,11 +443,15 @@ export default function App() {
     // Add the new route
     newRoutes[inputId] = outputIds
 
+    const controller = new AbortController()
+    runAbortRef.current = controller
+
     try {
       const res = await fetch("/api/process-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: newRoutes, strictStability, locks: buildLocksPayload(locksByInput) })
+        signal: controller.signal,
+        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput) })
       })
 
       if (!res.ok) {
@@ -318,27 +482,41 @@ export default function App() {
       setPendingOutputs([])
       console.log(`[debug] Route created: input ${inputId} → outputs [${outputIds.join(',')}]`)
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
+        return
+      }
       setError(e instanceof Error ? e.message : "Failed to process routes")
       setPendingInput(null)
       setPendingOutputs([])
     } finally {
+      if (runAbortRef.current === controller) {
+        runAbortRef.current = null
+      }
       setLoading(false)
+      setSolverRunning(false)
     }
   }
 
   // Delete a route (Ctrl/Cmd+click on input)
   async function deleteRoute(inputId: number) {
     setError(null)
+    cancelRequestedRef.current = false
+    setRunSummary(null)
     setLoading(true)
+    setSolverRunning(true)
 
     const newRoutes = { ...routes }
     delete newRoutes[inputId]
+
+    const controller = new AbortController()
+    runAbortRef.current = controller
 
     try {
       const res = await fetch("/api/process-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: newRoutes, strictStability, locks: buildLocksPayload(locksByInput) })
+        signal: controller.signal,
+        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput) })
       })
 
       if (!res.ok) {
@@ -364,9 +542,16 @@ export default function App() {
         setModifiedFile(selectedRoute)
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
+        return
+      }
       setError(e instanceof Error ? e.message : "Failed to delete route")
     } finally {
+      if (runAbortRef.current === controller) {
+        runAbortRef.current = null
+      }
       setLoading(false)
+      setSolverRunning(false)
     }
   }
 
@@ -419,6 +604,7 @@ export default function App() {
       setModifiedFile(null)
       setLocksByInput({})
       setSolverLog([])
+      setRunSummary(null)
     } catch (e) {
       setSizeInput(String(crossbarSize))
       setError(e instanceof Error ? e.message : "Failed to set size")
@@ -462,8 +648,166 @@ export default function App() {
     }
   }
 
+  async function cancelSolverRun() {
+    if (!solverRunning) return
+    cancelRequestedRef.current = true
+    setError(null)
+
+    try {
+      const res = await fetch("/api/cancel-run", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to cancel run")
+      }
+
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        eventSourceRef.current = null
+      }
+
+      if (runAbortRef.current) {
+        runAbortRef.current.abort()
+        runAbortRef.current = null
+      }
+
+      setLoading(false)
+      setSolverRunning(false)
+
+      if (data.summary) {
+        setRunSummary(formatRunSummary(data.summary))
+      }
+    } catch (e) {
+      cancelRequestedRef.current = false
+      setError(e instanceof Error ? e.message : "Failed to cancel run")
+    }
+  }
+
+  async function processRouteFileLockedOnly(filename: string, fileSize: number) {
+    if (!state || Object.keys(locksByInput).length === 0) {
+      return
+    }
+
+    if (state.N !== fileSize) {
+      setError(`Locked paths can't be preserved across size changes (${state.N} → ${fileSize}).`)
+      return
+    }
+
+    let fileText = ""
+    try {
+      const res = await fetch(`/api/routes/${encodeURIComponent(filename)}`)
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText || "Failed to read route file")
+      }
+      fileText = await res.text()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to read route file")
+      return
+    }
+
+    const fileRoutes = parseRoutesText(fileText)
+    const { lockedRoutes, lockedOutputOwners, lockedInputs } = buildLockedRoutes(state, locksByInput)
+    const { inputConflicts, outputConflicts } = findLockedConflicts(
+      fileRoutes,
+      lockedRoutes,
+      lockedOutputOwners,
+      lockedInputs
+    )
+
+    if (inputConflicts.length > 0 || outputConflicts.length > 0) {
+      const parts = []
+      if (inputConflicts.length > 0) {
+        parts.push(`inputs ${inputConflicts.join(", ")}`)
+      }
+      if (outputConflicts.length > 0) {
+        parts.push(`outputs ${outputConflicts.join(", ")}`)
+      }
+      setError(`Locked path conflict: ${parts.join("; ")}. Repeat the locked routes exactly or remove them.`)
+      return
+    }
+
+    const mergedRoutes = mergeLockedRoutes(fileRoutes, lockedRoutes)
+
+    cancelRequestedRef.current = false
+    setRunSummary(null)
+    setLoading(true)
+    setSolverRunning(true)
+    setSolverLog([])
+    setFabricSummary(null)
+    setSelectedRoute(filename)
+    setModifiedFile(null)
+
+    if (fileSize !== crossbarSize) {
+      setCrossbarSize(fileSize)
+      setSizeInput(String(fileSize))
+    }
+
+    await clearState()
+
+    const controller = new AbortController()
+    runAbortRef.current = controller
+
+    try {
+      const res = await fetch("/api/process-routes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          routes: mergedRoutes,
+          strictStability,
+          incremental,
+          locks: buildLocksPayload(locksByInput),
+          size: fileSize
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        const detail = err.lockConflicts ? ` (${err.lockConflicts.length} lock conflict${err.lockConflicts.length === 1 ? '' : 's'})` : ""
+        throw new Error((err.error || "Failed to process routes") + detail)
+      }
+
+      const json = await res.json()
+      const parsed = solverResponseSchema.parse(json)
+      setState(parsed)
+      setSelectedInput(null)
+
+      if (parsed.solverLog) {
+        const { entries, fabricSummary: summary } = extractFabricSummary(parsed.solverLog)
+        setSolverLog(prev => persistLog ? [...prev, ...entries] : entries)
+        setFabricSummary(summary)
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
+        return
+      }
+      setError(e instanceof Error ? e.message : "Failed to process routes")
+    } finally {
+      if (runAbortRef.current === controller) {
+        runAbortRef.current = null
+      }
+      setLoading(false)
+      setSolverRunning(false)
+    }
+  }
+
   async function processRouteFile(filename: string) {
     setError(null)
+    cancelRequestedRef.current = false
+    setRunSummary(null)
+
+    // Extract size from filename (e.g., "test.8.txt" -> 8)
+    const sizeMatch = filename.match(/\.(\d+)\.txt$/)
+    const fileSize = sizeMatch ? parseInt(sizeMatch[1], 10) : crossbarSize
+
+    const preserveLockedOnly = preserveMode === "locked"
+    const hasLocks = !!state && Object.keys(locksByInput).length > 0
+
+    if (preserveLockedOnly && hasLocks) {
+      await processRouteFileLockedOnly(filename, fileSize)
+      return
+    }
+
     setLoading(true)
     setSolverLog([]) // Clear log - new run makes previous log stale
     setFabricSummary(null) // Clear summary - new run replaces it
@@ -471,14 +815,10 @@ export default function App() {
     setModifiedFile(null) // Clear modified state when loading a new file
     setLocksByInput({})
 
-    // Clear server state if preserveState is disabled
-    if (!preserveState) {
+    // Clear server state if we're not preserving all
+    if (preserveMode !== "all") {
       await clearState()
     }
-
-    // Extract size from filename (e.g., "test.8.txt" -> 8)
-    const sizeMatch = filename.match(/\.(\d+)\.txt$/)
-    const fileSize = sizeMatch ? parseInt(sizeMatch[1], 10) : crossbarSize
 
     // Update crossbar size to match file
     if (fileSize !== crossbarSize) {
@@ -487,8 +827,9 @@ export default function App() {
     }
 
     // Use SSE for streaming solver output
-    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}`
+    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}&incremental=${incremental}`
     const eventSource = new EventSource(url)
+    eventSourceRef.current = eventSource
 
     // Track if we're in the Fabric Summary section
     let inSummary = false
@@ -515,13 +856,15 @@ export default function App() {
             // Categorize log level to match parseRouterLog in server.js
             // Summary: REPACK OK, STATS, FAIL
             // Route: >> ROUTE, ROLLBACK
-            // Detail: everything else (heatmap, port selections, PROGRESS, etc.)
+            // Detail: everything else (heatmap, port selections, etc.)
             let level: LogLevel = 'detail'
             let type: LogType = 'info'
 
             if (data.line.includes('REPACK OK')) {
               level = 'summary'; type = 'success'
             } else if (data.line.includes('STATS:')) {
+              level = 'summary'; type = 'info'
+            } else if (cleanLine.startsWith('PROGRESS:')) {
               level = 'summary'; type = 'info'
             } else if (data.line.includes('FAIL:')) {
               level = 'summary'; type = 'error'
@@ -550,6 +893,8 @@ export default function App() {
           setSolverLog(prev => [...prev, entry])
         } else if (data.type === "complete") {
           eventSource.close()
+          eventSourceRef.current = null
+          cancelRequestedRef.current = false
 
           if (data.error) {
             setError(data.error)
@@ -559,6 +904,7 @@ export default function App() {
             setSelectedInput(null)
           }
           setLoading(false)
+          setSolverRunning(false)
         }
       } catch (e) {
         console.error("SSE parse error:", e)
@@ -567,8 +913,12 @@ export default function App() {
 
     eventSource.onerror = () => {
       eventSource.close()
-      setError("Connection to solver lost")
+      eventSourceRef.current = null
+      if (!cancelRequestedRef.current) {
+        setError("Connection to solver lost")
+      }
       setLoading(false)
+      setSolverRunning(false)
     }
   }
 
@@ -613,6 +963,55 @@ export default function App() {
       setModifiedFile(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save routes")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveAsRouteFile(name: string) {
+    if (!name.trim()) {
+      setShowSaveAsInput(false)
+      setSaveAsName("")
+      return
+    }
+
+    setError(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch("/api/routes/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name.trim(), size: crossbarSize })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to create file")
+      }
+
+      const data = await res.json()
+      const routesPayload = state ? buildRoutesFromState(state) : routes
+
+      const saveRes = await fetch(`/api/routes/${encodeURIComponent(data.filename)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ routes: routesPayload })
+      })
+
+      if (!saveRes.ok) {
+        const err = await saveRes.json()
+        throw new Error(err.error || "Failed to save routes")
+      }
+
+      await fetchRouteFiles()
+      setSelectedRoute(data.filename)
+      setModifiedFile(null)
+      setShowSaveAsInput(false)
+      setSaveAsName("")
+      setDropdownOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save file")
     } finally {
       setLoading(false)
     }
@@ -727,6 +1126,8 @@ export default function App() {
         setDropdownOpen(false)
         setShowNewInput(false)
         setNewFileName("")
+        setShowSaveAsInput(false)
+        setSaveAsName("")
         setRenameFile(null)
         setRenameValue("")
       }
@@ -744,6 +1145,13 @@ export default function App() {
   }, [showNewInput])
 
   useEffect(() => {
+    if (showSaveAsInput && saveAsInputRef.current) {
+      saveAsInputRef.current.focus()
+      saveAsInputRef.current.select()
+    }
+  }, [showSaveAsInput])
+
+  useEffect(() => {
     if (renameFile && renameInputRef.current) {
       renameInputRef.current.focus()
       renameInputRef.current.select()
@@ -753,18 +1161,25 @@ export default function App() {
   async function applyLocksUpdate(nextLocks: LockMap, nextRoutes?: Record<number, number[]>) {
     if (!state) return
     setError(null)
+    cancelRequestedRef.current = false
+    setRunSummary(null)
     setLoading(true)
+    setSolverRunning(true)
     const previousLocks = locksByInput
     setLocksByInput(nextLocks)
 
     const routesPayload = nextRoutes || buildRoutesFromState(state)
     const locksPayload = buildLocksPayload(nextLocks)
 
+    const controller = new AbortController()
+    runAbortRef.current = controller
+
     try {
       const res = await fetch("/api/process-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: routesPayload, strictStability, locks: locksPayload })
+        signal: controller.signal,
+        body: JSON.stringify({ routes: routesPayload, strictStability, incremental, locks: locksPayload })
       })
 
       if (!res.ok) {
@@ -785,10 +1200,17 @@ export default function App() {
         setModifiedFile(selectedRoute)
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
+        return
+      }
       setLocksByInput(previousLocks)
       setError(e instanceof Error ? e.message : "Failed to apply locks")
     } finally {
+      if (runAbortRef.current === controller) {
+        runAbortRef.current = null
+      }
       setLoading(false)
+      setSolverRunning(false)
     }
   }
 
@@ -937,6 +1359,14 @@ export default function App() {
           />
           Strict Stability
         </label>
+        <label className="stabilityToggle">
+          <input
+            type="checkbox"
+            checked={incremental}
+            onChange={e => setIncremental(e.target.checked)}
+          />
+          Incremental Repair
+        </label>
         <label className="file">
           <input
             type="file"
@@ -948,6 +1378,11 @@ export default function App() {
           />
           Load JSON
         </label>
+        {solverRunning && (
+          <button className="killRunBtn" onClick={cancelSolverRun}>
+            Kill Run
+          </button>
+        )}
       </header>
 
       {error && <div className="error">{error}</div>}
@@ -1011,6 +1446,10 @@ export default function App() {
                           }
                         }}
                         onBlur={() => {
+                          if (skipNewInputBlurRef.current) {
+                            skipNewInputBlurRef.current = false
+                            return
+                          }
                           if (newFileName.trim()) {
                             createNewRouteFile(newFileName)
                           } else {
@@ -1022,22 +1461,81 @@ export default function App() {
                   ) : (
                     <button
                       className="routeDropdownItem routeDropdownNew"
-                      onClick={() => setShowNewInput(true)}
+                      onMouseDown={() => {
+                        skipSaveAsInputBlurRef.current = true
+                      }}
+                      onClick={() => {
+                        setShowSaveAsInput(false)
+                        setSaveAsName("")
+                        setShowNewInput(true)
+                      }}
                     >
-                      + New Route File
+                      + New
                     </button>
                   )}
 
                   {/* Upload option */}
                   <button
                     className="routeDropdownItem routeDropdownUpload"
+                    onMouseDown={() => {
+                      skipNewInputBlurRef.current = true
+                      skipSaveAsInputBlurRef.current = true
+                    }}
                     onClick={() => {
                       uploadRef.current?.click()
                       setDropdownOpen(false)
                     }}
                   >
-                    ↑ Upload Route File
+                    ↑ Upload
                   </button>
+
+                  {/* Save As option */}
+                  {showSaveAsInput ? (
+                    <div className="routeDropdownItem routeDropdownNewInput">
+                      <input
+                        ref={saveAsInputRef}
+                        type="text"
+                        className="routeNameInput"
+                        placeholder="filename.txt"
+                        value={saveAsName}
+                        onChange={e => setSaveAsName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            saveAsRouteFile(saveAsName)
+                          } else if (e.key === "Escape") {
+                            setShowSaveAsInput(false)
+                            setSaveAsName("")
+                          }
+                        }}
+                        onBlur={() => {
+                          if (skipSaveAsInputBlurRef.current) {
+                            skipSaveAsInputBlurRef.current = false
+                            return
+                          }
+                          if (saveAsName.trim()) {
+                            saveAsRouteFile(saveAsName)
+                          } else {
+                            setShowSaveAsInput(false)
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      className="routeDropdownItem routeDropdownSaveAs"
+                      onMouseDown={() => {
+                        skipNewInputBlurRef.current = true
+                      }}
+                      onClick={() => {
+                        setShowNewInput(false)
+                        setNewFileName("")
+                        setShowSaveAsInput(true)
+                        setSaveAsName(selectedRoute ? displayName(selectedRoute) : "")
+                      }}
+                    >
+                      Save As...
+                    </button>
+                  )}
 
                   <div className="routeDropdownDivider" />
 
@@ -1110,15 +1608,40 @@ export default function App() {
               )}
             </div>
 
-            {/* Preserve State checkbox - controls delta tracking across file switches */}
-            <label className="preserveStateCheckbox">
-              <input
-                type="checkbox"
-                checked={preserveState}
-                onChange={e => setPreserveState(e.target.checked)}
-              />
-              Preserve state
-            </label>
+            {/* Preserve State selector - controls delta tracking across file switches */}
+            <div className="preserveStateControls">
+              <div className="preserveStateLabel">Preserve state</div>
+              <label className="preserveStateOption">
+                <input
+                  type="radio"
+                  name="preserveMode"
+                  value="all"
+                  checked={preserveMode === "all"}
+                  onChange={() => setPreserveMode("all")}
+                />
+                All
+              </label>
+              <label className="preserveStateOption">
+                <input
+                  type="radio"
+                  name="preserveMode"
+                  value="locked"
+                  checked={preserveMode === "locked"}
+                  onChange={() => setPreserveMode("locked")}
+                />
+                Locked paths only
+              </label>
+              <label className="preserveStateOption">
+                <input
+                  type="radio"
+                  name="preserveMode"
+                  value="none"
+                  checked={preserveMode === "none"}
+                  onChange={() => setPreserveMode("none")}
+                />
+                None
+              </label>
+            </div>
 
             {/* Hidden file input for upload */}
             <input
@@ -1233,11 +1756,12 @@ export default function App() {
         <LogPanel
           entries={solverLog}
           fabricSummary={fabricSummary}
+          runSummary={runSummary}
           level={logLevel}
           onLevelChange={setLogLevel}
           persistHistory={persistLog}
           onPersistChange={setPersistLog}
-          onClear={() => { setSolverLog([]); setFabricSummary(null) }}
+          onClear={() => { setSolverLog([]); setFabricSummary(null); setRunSummary(null) }}
         />
       </div>
     </div>

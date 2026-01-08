@@ -132,6 +132,11 @@ If either check fails, the solver prints `UNSAT DETAILS` and exits—no solution
 
 The core solver uses two key optimizations:
 
+**Greedy Seed (Initial Bound):**
+- Runs a fast greedy pass (same constraints and ordering rules) to get a valid solution quickly
+- Uses that solution to tighten the initial stability-cost bound before full backtracking
+- If the greedy pass can’t find a solution, the solver falls back to pure backtracking (no loss of correctness)
+
 **MRV Variable Selection (Minimum Remaining Values):**
 - At each recursion level, selects the demand with the fewest valid spine choices
 - Prioritizes harder-to-satisfy constraints first
@@ -169,6 +174,15 @@ Branch cost was removed from the optimization to improve solver performance. The
 | Capacity Check | Backtracking | Capacity OK |
 | Backtracking | Prune branch | Stability cost ≥ best known |
 | Backtracking | **Stop early** | Perfect stability achieved (0 route changes) |
+
+### Optional Incremental Repair
+
+When run with `--incremental`, the solver first tries a **local repair**:
+- Keeps the current fabric assignments fixed
+- Frees only demands that were removed
+- Solves only **new (input, egress_block)** demands
+
+If local repair fails, it falls back to a full global repack (unless strict stability is enabled).
 
 ### Key Insight
 

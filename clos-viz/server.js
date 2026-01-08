@@ -3,7 +3,7 @@
 import express from "express"
 import cors from "cors"
 import multer from "multer"
-import { execSync, spawn } from "child_process"
+import { spawn } from "child_process"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -32,6 +32,89 @@ let lastLocks = []
 // Current crossbar size (default 10)
 let currentSize = 10
 
+let activeRun = null
+let runCounter = 0
+
+const progressRegex = /PROGRESS:\s+(\d+)\s+attempts in\s+(\d+)s\s+\(depth=(\d+)\/(\d+),\s+best_cost=([-\d]+)\)/
+
+function beginRun(child, tmpFiles = []) {
+  if (activeRun && activeRun.status === "running") {
+    return null
+  }
+
+  runCounter += 1
+  activeRun = {
+    id: runCounter,
+    child,
+    startTime: Date.now(),
+    status: "running",
+    cancelled: false,
+    tmpFiles,
+    onCancel: null,
+    progress: {
+      attemptsTotal: 0n,
+      depth: null,
+      maxDepth: null,
+      bestCost: null,
+      lastStatsLine: null
+    }
+  }
+
+  return activeRun
+}
+
+function cleanupRun(run) {
+  for (const file of run.tmpFiles || []) {
+    try {
+      if (fs.existsSync(file)) fs.unlinkSync(file)
+    } catch (err) {
+      console.error(`Failed to remove temp file ${file}:`, err.message)
+    }
+  }
+}
+
+function finishRun(run) {
+  if (!run) return
+  cleanupRun(run)
+  if (activeRun && activeRun.id === run.id) {
+    activeRun = null
+  }
+}
+
+function updateRunProgress(run, line) {
+  if (!run) return
+  const trimmed = line.replace(/^\[S\]\s*/, "").trim()
+  if (!trimmed) return
+
+  if (trimmed.includes("PROGRESS:")) {
+    const match = progressRegex.exec(trimmed)
+    if (match) {
+      const attempts = BigInt(match[1])
+      run.progress.attemptsTotal += attempts
+      run.progress.depth = parseInt(match[3], 10)
+      run.progress.maxDepth = parseInt(match[4], 10)
+      run.progress.bestCost = parseInt(match[5], 10)
+    }
+  }
+
+  if (trimmed.includes("STATS:")) {
+    run.progress.lastStatsLine = trimmed
+  }
+}
+
+function buildRunSummary(run) {
+  const elapsedSeconds = Math.floor((Date.now() - run.startTime) / 1000)
+  const attempts = run.progress.attemptsTotal > 0n ? run.progress.attemptsTotal.toString() : null
+  return {
+    attempts,
+    elapsedSeconds,
+    depth: run.progress.depth,
+    maxDepth: run.progress.maxDepth,
+    bestCost: run.progress.bestCost,
+    lastStatsLine: run.progress.lastStatsLine
+  }
+}
+
 // Parse router stdout into structured log entries
 function parseRouterLog(stdout, state = {}) {
   const entries = []
@@ -52,33 +135,37 @@ function parseRouterLog(stdout, state = {}) {
   const lines = mainOutput.split('\n').filter(line => line.trim())
 
   for (const line of lines) {
+    const cleanLine = line.replace(/^\[S\]\s*/, '').trim()
+    if (!cleanLine) continue
     let entry = null
 
     // Summary level entries
-    if (line.includes('REPACK OK:')) {
-      entry = { level: 'summary', type: 'success', message: line.trim() }
-    } else if (line.includes('STATS:')) {
-      entry = { level: 'summary', type: 'info', message: line.trim() }
-    } else if (line.includes('FAIL:')) {
-      entry = { level: 'summary', type: 'error', message: line.trim() }
+    if (cleanLine.includes('REPACK OK:') || cleanLine.includes('REPAIR OK:')) {
+      entry = { level: 'summary', type: 'success', message: cleanLine }
+    } else if (cleanLine.includes('STATS:')) {
+      entry = { level: 'summary', type: 'info', message: cleanLine }
+    } else if (cleanLine.includes('FAIL:')) {
+      entry = { level: 'summary', type: 'error', message: cleanLine }
+    } else if (cleanLine.startsWith('PROGRESS:')) {
+      entry = { level: 'summary', type: 'info', message: cleanLine }
     }
     // Route level entries
-    else if (line.includes('>> ROUTE:')) {
-      entry = { level: 'route', type: 'info', message: line.trim() }
-    } else if (line.includes('ROLLBACK:')) {
-      entry = { level: 'route', type: 'warning', message: line.trim() }
+    else if (cleanLine.includes('>> ROUTE:')) {
+      entry = { level: 'route', type: 'info', message: cleanLine }
+    } else if (cleanLine.includes('ROLLBACK:')) {
+      entry = { level: 'route', type: 'warning', message: cleanLine }
     }
     // Detail level entries
-    else if (line.includes('UNSAT DETAILS:') || line.includes('VALIDATION')) {
-      entry = { level: 'detail', type: 'error', message: line.trim() }
-    } else if (line.includes('Egress block') || line.includes('Ingress block')) {
-      entry = { level: 'detail', type: 'info', message: line.trim() }
-    } else if (line.trim().startsWith('---')) {
+    else if (cleanLine.includes('UNSAT DETAILS:') || cleanLine.includes('VALIDATION')) {
+      entry = { level: 'detail', type: 'error', message: cleanLine }
+    } else if (cleanLine.includes('Egress block') || cleanLine.includes('Ingress block')) {
+      entry = { level: 'detail', type: 'info', message: cleanLine }
+    } else if (cleanLine.startsWith('---')) {
       // Skip separator lines
       continue
-    } else if (line.trim()) {
+    } else {
       // Other output as detail
-      entry = { level: 'detail', type: 'info', message: line.trim() }
+      entry = { level: 'detail', type: 'info', message: cleanLine }
     }
 
     if (entry) {
@@ -92,6 +179,14 @@ function parseRouterLog(stdout, state = {}) {
       level: 'summary',
       type: 'info',
       message: `Strict stability: ${state.strict_stability ? 'enabled' : 'disabled'}`,
+      timestamp
+    })
+  }
+  if (state.incremental !== undefined) {
+    entries.unshift({
+      level: 'summary',
+      type: 'info',
+      message: `Incremental repair: ${state.incremental ? 'enabled' : 'disabled'}`,
       timestamp
     })
   }
@@ -151,6 +246,28 @@ app.get("/api/routes", (req, res) => {
       .filter(f => f.endsWith(suffix))
       .sort()
     res.json({ files })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/routes/:filename - Return raw route file contents
+app.get("/api/routes/:filename", (req, res) => {
+  const { filename } = req.params
+  const filepath = path.join(ROUTES_DIR, filename)
+
+  // Security: ensure file is within ROUTES_DIR
+  if (!filepath.startsWith(ROUTES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  if (!fs.existsSync(filepath)) {
+    return res.status(404).json({ error: "Route file not found" })
+  }
+
+  try {
+    const contents = fs.readFileSync(filepath, "utf-8")
+    res.type("text/plain").send(contents)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -324,8 +441,8 @@ app.put("/api/routes/:filename", (req, res) => {
 })
 
 // POST /api/process - Run router on a route file
-app.post("/api/process", (req, res) => {
-  const { filename, size } = req.body
+app.post("/api/process", async (req, res) => {
+  const { filename, size, incremental } = req.body
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
@@ -355,55 +472,95 @@ app.post("/api/process", (req, res) => {
     return res.status(500).json({ error: "Router binary not found. Run: gcc -O2 -Wall -std=c11 ../clos_mult_router.c -o ../clos_mult_router" })
   }
 
-  try {
-    // Clear locks when loading a file (but preserve lastState for delta tracking)
-    lastLocks = []
-
-    // Create temp files for JSON output and previous state
-    const tmpJson = path.join(__dirname, ".tmp_state.json")
-    const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
-
-    // Build command with optional previous state for delta tracking
-    let cmd = `"${ROUTER_PATH}" "${routePath}" --json "${tmpJson}" --size ${currentSize}`
-
-    if (lastState) {
-      fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
-      cmd += ` --previous-state "${tmpPrevState}"`
-    }
-
-    // Run the router and capture stdout
-    const stdout = execSync(cmd, {
-      encoding: "utf-8",
-      timeout: 300000
-    })
-
-    // Read and return the JSON
-    const stateJson = fs.readFileSync(tmpJson, "utf-8")
-    const state = JSON.parse(stateJson)
-
-    // Parse stdout into log entries
-    const solverLog = parseRouterLog(stdout, state)
-
-    // Cache for future incremental updates
-    lastState = state
-
-    // Clean up
-    fs.unlinkSync(tmpJson)
-
-    if (state.lock_conflicts && state.lock_conflicts.length > 0) {
-      return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
-    }
-
-    res.json({ ...state, solverLog })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+  if (activeRun && activeRun.status === "running") {
+    return res.status(409).json({ error: "Solver already running" })
   }
+
+  // Clear locks when loading a file (but preserve lastState for delta tracking)
+  lastLocks = []
+
+  // Create temp files for JSON output and previous state
+  const tmpJson = path.join(__dirname, ".tmp_state.json")
+  const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
+  const tmpFiles = [tmpJson, tmpPrevState]
+
+  const args = [routePath, "--json", tmpJson, "--size", String(currentSize)]
+  if (lastState) {
+    fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
+    args.push("--previous-state", tmpPrevState)
+  }
+  if (incremental) {
+    args.push("--incremental")
+  }
+
+  const child = spawn(ROUTER_PATH, args)
+  const run = beginRun(child, tmpFiles)
+  if (!run) {
+    child.kill()
+    return res.status(409).json({ error: "Solver already running" })
+  }
+
+  let stdout = ""
+  let stdoutBuffer = ""
+  let stderr = ""
+
+  child.stdout.on("data", (data) => {
+    const chunk = data.toString()
+    stdout += chunk
+    stdoutBuffer += chunk
+    const lines = stdoutBuffer.split("\n")
+    stdoutBuffer = lines.pop()
+    for (const line of lines) {
+      updateRunProgress(run, line)
+    }
+  })
+
+  child.stderr.on("data", (data) => {
+    stderr += data.toString()
+  })
+
+  child.on("close", (code) => {
+    if (stdoutBuffer.trim()) {
+      updateRunProgress(run, stdoutBuffer)
+    }
+    const summary = buildRunSummary(run)
+    const cancelled = run.cancelled
+
+    if (cancelled) {
+      finishRun(run)
+      return res.status(409).json({ error: "Run cancelled", summary })
+    }
+
+    if (code !== 0) {
+      finishRun(run)
+      return res.status(500).json({ error: stderr || `Process exited with code ${code}` })
+    }
+
+    try {
+      const stateJson = fs.readFileSync(tmpJson, "utf-8")
+      const state = JSON.parse(stateJson)
+
+      const solverLog = parseRouterLog(stdout, state)
+      lastState = state
+
+      if (state.lock_conflicts && state.lock_conflicts.length > 0) {
+        finishRun(run)
+        return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
+      }
+
+      finishRun(run)
+      res.json({ ...state, solverLog })
+    } catch (err) {
+      finishRun(run)
+      res.status(500).json({ error: err.message })
+    }
+  })
 })
 
 // GET /api/process-stream - SSE endpoint for streaming solver output
-// Query: ?filename=routes.txt&size=10
+// Query: ?filename=routes.txt&size=10&incremental=true
 app.get("/api/process-stream", (req, res) => {
-  const { filename, size } = req.query
+  const { filename, size, incremental } = req.query
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
@@ -438,12 +595,19 @@ app.get("/api/process-stream", (req, res) => {
   res.setHeader("Connection", "keep-alive")
   res.flushHeaders()
 
+  if (activeRun && activeRun.status === "running") {
+    res.write(`data: ${JSON.stringify({ type: "complete", error: "Solver already running" })}\n\n`)
+    res.end()
+    return
+  }
+
   // Clear locks when loading a file (but preserve lastState for delta tracking)
   lastLocks = []
 
   // Create temp files
   const tmpJson = path.join(__dirname, ".tmp_state.json")
   const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
+  const tmpFiles = [tmpJson, tmpPrevState]
 
   // Build args array for spawn
   const args = [routePath, "--json", tmpJson, "--size", String(currentSize)]
@@ -452,9 +616,30 @@ app.get("/api/process-stream", (req, res) => {
     fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
     args.push("--previous-state", tmpPrevState)
   }
+  if (incremental === "true") {
+    args.push("--incremental")
+  }
 
   // Spawn the router process
   const child = spawn(ROUTER_PATH, args)
+  const run = beginRun(child, tmpFiles)
+
+  if (!run) {
+    child.kill()
+    res.write(`data: ${JSON.stringify({ type: "complete", error: "Solver already running" })}\n\n`)
+    res.end()
+    return
+  }
+
+  run.onCancel = () => {
+    try {
+      const summary = buildRunSummary(run)
+      res.write(`data: ${JSON.stringify({ type: "complete", error: "Run cancelled", summary })}\n\n`)
+      res.end()
+    } catch (err) {
+      // ignore write errors on cancel
+    }
+  }
   let stdoutBuffer = ""
 
   // Stream stdout lines as SSE events
@@ -464,7 +649,8 @@ app.get("/api/process-stream", (req, res) => {
     stdoutBuffer = lines.pop() // Keep incomplete line in buffer
 
     for (const line of lines) {
-      if (line.trim()) {
+      updateRunProgress(run, line)
+      if (line.trim() && !res.writableEnded) {
         // Send each line as an SSE event
         res.write(`data: ${JSON.stringify({ type: "log", line })}\n\n`)
       }
@@ -472,18 +658,36 @@ app.get("/api/process-stream", (req, res) => {
   })
 
   child.stderr.on("data", (data) => {
-    res.write(`data: ${JSON.stringify({ type: "error", message: data.toString() })}\n\n`)
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", message: data.toString() })}\n\n`)
+    }
   })
 
   child.on("close", (code) => {
+    const canWrite = !res.writableEnded
     // Send any remaining buffered output
     if (stdoutBuffer.trim()) {
-      res.write(`data: ${JSON.stringify({ type: "log", line: stdoutBuffer })}\n\n`)
+      updateRunProgress(run, stdoutBuffer)
+      if (canWrite) {
+        res.write(`data: ${JSON.stringify({ type: "log", line: stdoutBuffer })}\n\n`)
+      }
+    }
+
+    const summary = buildRunSummary(run)
+    const cancelled = run.cancelled
+
+    if (cancelled) {
+      finishRun(run)
+      if (canWrite) res.end()
+      return
     }
 
     if (code !== 0) {
-      res.write(`data: ${JSON.stringify({ type: "complete", error: `Process exited with code ${code}` })}\n\n`)
-      res.end()
+      finishRun(run)
+      if (canWrite) {
+        res.write(`data: ${JSON.stringify({ type: "complete", error: `Process exited with code ${code}` })}\n\n`)
+        res.end()
+      }
       return
     }
 
@@ -495,28 +699,33 @@ app.get("/api/process-stream", (req, res) => {
       // Cache for future incremental updates
       lastState = state
 
-      // Clean up temp file
-      fs.unlinkSync(tmpJson)
-
       // Send the complete state
-      res.write(`data: ${JSON.stringify({ type: "complete", state })}\n\n`)
+      if (canWrite) {
+        res.write(`data: ${JSON.stringify({ type: "complete", state, summary })}\n\n`)
+      }
     } catch (err) {
-      res.write(`data: ${JSON.stringify({ type: "complete", error: err.message })}\n\n`)
+      if (canWrite) {
+        res.write(`data: ${JSON.stringify({ type: "complete", error: err.message })}\n\n`)
+      }
     }
-    res.end()
+    finishRun(run)
+    if (canWrite) res.end()
   })
 
   // Handle client disconnect
   req.on("close", () => {
+    if (activeRun && activeRun.id === run.id) {
+      activeRun.cancelled = true
+    }
     child.kill()
   })
 })
 
 // POST /api/process-routes - Process routes from JSON directly
-// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, size?: number }
-// e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true, size: 8 }
+// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, incremental?: boolean, size?: number }
+// e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true, incremental: true, size: 8 }
 app.post("/api/process-routes", (req, res) => {
-  const { routes, strictStability, size, locks } = req.body
+  const { routes, strictStability, incremental, size, locks } = req.body
 
   if (!routes || typeof routes !== "object") {
     return res.status(400).json({ error: "No routes provided" })
@@ -535,85 +744,158 @@ app.post("/api/process-routes", (req, res) => {
     return res.status(500).json({ error: "Router binary not found" })
   }
 
+  if (activeRun && activeRun.status === "running") {
+    return res.status(409).json({ error: "Solver already running" })
+  }
+
+  // Convert routes object to route file format
+  // Format: input.output1.output2.output3...
+  const lines = []
+  for (const [inputId, outputs] of Object.entries(routes)) {
+    if (Array.isArray(outputs) && outputs.length > 0) {
+      lines.push(`${inputId}.${outputs.join(".")}`)
+    }
+  }
+
+  if (lines.length === 0) {
+    return res.status(400).json({ error: "No valid routes provided" })
+  }
+
+  // Write temp route file
+  const tmpRoutes = path.join(__dirname, ".tmp_routes.txt")
+  const tmpJson = path.join(__dirname, ".tmp_state.json")
+  const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
+  const tmpLocks = path.join(__dirname, ".tmp_locks.json")
+  const tmpFiles = [tmpRoutes, tmpJson, tmpPrevState, tmpLocks]
+
+  fs.writeFileSync(tmpRoutes, lines.join("\n"))
+
+  const args = [tmpRoutes, "--json", tmpJson, "--size", String(currentSize)]
+
+  if (lastState) {
+    fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
+    args.push("--previous-state", tmpPrevState)
+  }
+
+  const lockArray = Array.isArray(locks) ? locks : []
+  if (lockArray.length > 0) {
+    fs.writeFileSync(tmpLocks, JSON.stringify({ locks: lockArray }))
+    args.push("--locks", tmpLocks)
+  }
+
+  if (strictStability) {
+    args.push("--strict-stability")
+  }
+  if (incremental) {
+    args.push("--incremental")
+  }
+
+  const child = spawn(ROUTER_PATH, args)
+  const run = beginRun(child, tmpFiles)
+  if (!run) {
+    child.kill()
+    return res.status(409).json({ error: "Solver already running" })
+  }
+
+  let stdout = ""
+  let stdoutBuffer = ""
+  let stderr = ""
+
+  child.stdout.on("data", (data) => {
+    const chunk = data.toString()
+    stdout += chunk
+    stdoutBuffer += chunk
+    const linesOut = stdoutBuffer.split("\n")
+    stdoutBuffer = linesOut.pop()
+    for (const line of linesOut) {
+      updateRunProgress(run, line)
+    }
+  })
+
+  child.stderr.on("data", (data) => {
+    stderr += data.toString()
+  })
+
+  child.on("close", (code) => {
+    if (stdoutBuffer.trim()) {
+      updateRunProgress(run, stdoutBuffer)
+    }
+    const summary = buildRunSummary(run)
+    const cancelled = run.cancelled
+
+    if (cancelled) {
+      finishRun(run)
+      return res.status(409).json({ error: "Run cancelled", summary })
+    }
+
+    if (code !== 0) {
+      const combinedOutput = `${stdout}\n${stderr}`
+      if (combinedOutput.includes("Strict stability")) {
+        finishRun(run)
+        return res.status(409).json({ error: "Strict stability enabled - would require rerouting existing connections" })
+      }
+      finishRun(run)
+      return res.status(500).json({ error: stderr || `Process exited with code ${code}` })
+    }
+
+    try {
+      const stateJson = fs.readFileSync(tmpJson, "utf-8")
+      const state = JSON.parse(stateJson)
+
+      const solverLog = parseRouterLog(stdout, state)
+      lastState = state
+      lastLocks = lockArray
+
+      if (state.lock_conflicts && state.lock_conflicts.length > 0) {
+        finishRun(run)
+        return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
+      }
+
+      finishRun(run)
+      res.json({ ...state, solverLog })
+    } catch (err) {
+      finishRun(run)
+      res.status(500).json({ error: err.message })
+    }
+  })
+})
+
+// POST /api/cancel-run - Cancel active solver run
+app.post("/api/cancel-run", (req, res) => {
+  if (!activeRun || activeRun.status !== "running") {
+    return res.status(409).json({ error: "No active solver run" })
+  }
+
+  const run = activeRun
+  run.cancelled = true
+  run.status = "cancelling"
+  const summary = buildRunSummary(run)
+
   try {
-    // Convert routes object to route file format
-    // Format: input.output1.output2.output3...
-    const lines = []
-    for (const [inputId, outputs] of Object.entries(routes)) {
-      if (Array.isArray(outputs) && outputs.length > 0) {
-        lines.push(`${inputId}.${outputs.join(".")}`)
+    if (run.onCancel) {
+      run.onCancel()
+    }
+  } catch (err) {
+    // ignore onCancel errors
+  }
+
+  try {
+    run.child.kill("SIGTERM")
+  } catch (err) {
+    console.error("Failed to SIGTERM solver:", err.message)
+  }
+
+  setTimeout(() => {
+    if (run.child && run.child.exitCode === null) {
+      try {
+        run.child.kill("SIGKILL")
+      } catch (err) {
+        console.error("Failed to SIGKILL solver:", err.message)
       }
     }
+  }, 1500)
 
-    if (lines.length === 0) {
-      return res.status(400).json({ error: "No valid routes provided" })
-    }
-
-    // Write temp route file
-    const tmpRoutes = path.join(__dirname, ".tmp_routes.txt")
-    const tmpJson = path.join(__dirname, ".tmp_state.json")
-    const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
-    const tmpLocks = path.join(__dirname, ".tmp_locks.json")
-
-    fs.writeFileSync(tmpRoutes, lines.join("\n"))
-
-    // Build command with optional previous state, strict stability, and size
-    let cmd = `"${ROUTER_PATH}" "${tmpRoutes}" --json "${tmpJson}" --size ${currentSize}`
-
-    if (lastState) {
-      fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))
-      cmd += ` --previous-state "${tmpPrevState}"`
-    }
-
-    const lockArray = Array.isArray(locks) ? locks : []
-    lastLocks = lockArray
-    if (lockArray.length > 0) {
-      fs.writeFileSync(tmpLocks, JSON.stringify({ locks: lockArray }))
-      cmd += ` --locks "${tmpLocks}"`
-    }
-
-    if (strictStability) {
-      cmd += " --strict-stability"
-    }
-
-    // Run the router and capture stdout
-    const stdout = execSync(cmd, {
-      encoding: "utf-8",
-      timeout: 300000
-    })
-
-    // Read and return the JSON
-    const stateJson = fs.readFileSync(tmpJson, "utf-8")
-    const state = JSON.parse(stateJson)
-
-    // Parse stdout into log entries
-    const solverLog = parseRouterLog(stdout, state)
-
-    // Cache for future incremental updates
-    lastState = state
-
-    // Clean up
-    fs.unlinkSync(tmpRoutes)
-    fs.unlinkSync(tmpJson)
-    if (fs.existsSync(tmpPrevState)) {
-      fs.unlinkSync(tmpPrevState)
-    }
-    if (fs.existsSync(tmpLocks)) {
-      fs.unlinkSync(tmpLocks)
-    }
-
-    if (state.lock_conflicts && state.lock_conflicts.length > 0) {
-      return res.status(409).json({ error: "Locked path conflict", lockConflicts: state.lock_conflicts })
-    }
-
-    res.json({ ...state, solverLog })
-  } catch (err) {
-    // Check if this is a strict stability failure
-    if (err.message && err.message.includes("Strict stability")) {
-      return res.status(409).json({ error: "Strict stability enabled - would require rerouting existing connections" })
-    }
-    res.status(500).json({ error: err.message })
-  }
+  res.json({ success: true, summary })
 })
 
 // GET /api/size - Get current crossbar size
