@@ -1,5 +1,9 @@
 import { useMemo, useRef, useEffect, useState } from "react"
 import type { LogEntry, LogLevel } from "./schema"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 
 type Props = {
   entries: LogEntry[]
@@ -157,24 +161,29 @@ export function LogPanel({
       <div className="logHeader">
         <div className="logTitle">Solver Log</div>
         <div className="logControls">
-          <select
-            value={level}
-            onChange={e => onLevelChange(e.target.value as LogLevel)}
-            className="logLevelSelect"
-          >
-            <option value="summary">Summary</option>
-            <option value="route">Per-route</option>
-            <option value="detail">Full Detail</option>
-          </select>
-          <label className="logPersist">
-            <input
-              type="checkbox"
+          <Select value={level} onValueChange={(v) => onLevelChange(v as LogLevel)}>
+            <SelectTrigger className="w-[130px] h-8">
+              <SelectValue placeholder="Log level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="summary">Summary</SelectItem>
+              <SelectItem value="route">Per-route</SelectItem>
+              <SelectItem value="detail">Full Detail</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-100 transition-colors">
+            <Checkbox
+              id="persistHistory"
               checked={persistHistory}
-              onChange={e => onPersistChange(e.target.checked)}
+              onCheckedChange={(checked) => onPersistChange(checked === true)}
             />
-            Keep History
-          </label>
-          <button className="logClearBtn" onClick={onClear}>Clear</button>
+            <Label htmlFor="persistHistory" className="cursor-pointer text-xs font-medium">
+              Keep History
+            </Label>
+          </div>
+          <Button variant="secondary" size="sm" onClick={onClear}>
+            Clear
+          </Button>
         </div>
       </div>
 

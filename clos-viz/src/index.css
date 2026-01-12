@@ -1,3 +1,38 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* Base spacing unit - controls px-*, py-*, p-*, m-*, gap-*, etc. */
+  --spacing: 0.25rem;
+
+  /* Border radius */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Semantic colors - generate bg-*, text-*, border-* utilities */
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222 47% 11%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(222 47% 11%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222 47% 11%);
+  --color-primary: hsl(222 47% 11%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96%);
+  --color-secondary-foreground: hsl(222 47% 11%);
+  --color-muted: hsl(210 40% 96%);
+  --color-muted-foreground: hsl(215 16% 47%);
+  --color-accent: hsl(210 40% 96%);
+  --color-accent-foreground: hsl(222 47% 11%);
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(214 32% 91%);
+  --color-input: hsl(214 32% 91%);
+  --color-ring: hsl(222 47% 11%);
+}
+
 :root {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
@@ -17,14 +52,28 @@
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 16px;
+  gap: 16px;
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
 }
 
-.title { font-weight: 700; font-size: 16px; }
-.buildInfo { font-weight: 400; font-size: 11px; color: #888; margin-left: 12px; }
+.title {
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+}
+.buildInfo {
+  font-weight: 400;
+  font-size: 11px;
+  color: #888;
+}
+.topbarControls {
+  margin-left: calc(280px - 180px - 32px);  /* Align with sidebar edge */
+}
 
 .file input { display: none; }
 .file {
@@ -179,7 +228,12 @@
   overflow-y: auto;
 }
 
-.panelTitle { font-weight: 700; margin-bottom: 10px; }
+.panelTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  margin-bottom: 12px;
+}
 
 .search {
   width: 100%;
@@ -198,23 +252,27 @@
 
 .row {
   text-align: left;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 10px;
+  padding: 12px;
   background: #fff;
   cursor: pointer;
   width: 100%;
+  transition: border-color 0.15s, background 0.15s;
 }
-.row:hover { background: #fafafa; }
+.row:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
 
 .row.active {
-  border-color: #333;
-  background: #f0f0f0;
+  border-color: #3b82f6;
+  background: #eff6ff;
 }
 
-.rowId { font-weight: 600; }
-.rowMeta { color: #666; font-size: 12px; margin-top: 2px; }
-.hint { color: #888; font-size: 13px; padding: 10px 0; }
+.rowId { font-weight: 600; font-size: 14px; color: #1e293b; }
+.rowMeta { color: #64748b; font-size: 12px; margin-top: 4px; }
+.hint { color: #94a3b8; font-size: 13px; padding: 12px 0; text-align: center; }
 
 .panel {
   margin-bottom: 20px;
@@ -266,13 +324,15 @@
 .preserveStateControls {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .preserveStateLabel {
-  font-size: 12px;
-  color: #666;
+  font-size: 13px;
+  color: #475569;
   font-weight: 600;
 }
 
@@ -291,23 +351,40 @@
   color: #333;
 }
 
+/* Calculation Options Panel */
+.calcOptionsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
 .routeDropdownTrigger {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d0d0d0;
+  padding: 10px 16px;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .routeDropdownTrigger:hover {
-  background: #f8f8f8;
-  border-color: #bbb;
+  border-color: #94a3b8;
+}
+
+.routeDropdownTrigger:focus {
+  outline: none;
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.25);
 }
 
 .routeDropdownTrigger:disabled {
@@ -316,7 +393,7 @@
 }
 
 .routeDropdownTrigger.hasChanges {
-  border-color: #4a90d9;
+  border-color: #3b82f6;
 }
 
 .routeFileName {
@@ -344,34 +421,37 @@
   right: 0;
   margin-top: 4px;
   background: #fff;
-  border: 1px solid #d0d0d0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   z-index: 100;
   max-height: 300px;
   overflow-y: auto;
+  padding: 4px;
 }
 
 .routeDropdownItem {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 10px 12px;
   cursor: pointer;
   border: none;
   background: none;
   width: 100%;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   gap: 8px;
+  border-radius: 6px;
+  transition: background 0.1s;
 }
 
 .routeDropdownItem:hover {
-  background: #f5f5f5;
+  background: #f1f5f9;
 }
 
 .routeDropdownItem.active {
-  background: #e8f0fe;
+  background: #e0f2fe;
 }
 
 .routeDropdownNew {
@@ -396,16 +476,17 @@
 
 .routeNameInput {
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #4a90d9;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: 8px 12px;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 14px;
   outline: none;
   width: 100%;
+  background: #fff;
 }
 
 .routeNameInput:focus {
-  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .routeDropdownItemMain {
@@ -434,56 +515,61 @@
 }
 
 .routeDropdownActions button {
-  padding: 2px 6px;
-  font-size: 11px;
-  border: 1px solid #d0d0d0;
-  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
   background: #fff;
   cursor: pointer;
+  color: #64748b;
+  transition: all 0.15s;
 }
 
 .routeDropdownActions button:hover {
-  background: #f0f0f0;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
 }
 
 .routeDropdownActions button.delete:hover {
-  background: #fee;
-  border-color: #fcc;
-  color: #c00;
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
 .routeDropdownDivider {
   height: 1px;
-  background: #e0e0e0;
-  margin: 4px 0;
+  background: #e2e8f0;
+  margin: 6px 4px;
 }
 
 .saveBtn {
-  padding: 4px 8px;
-  font-size: 11px;
-  background: #4a90d9;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #3b82f6;
   color: white;
   border: none;
-  border-radius: 3px;
+  border-radius: 6px;
   cursor: pointer;
   flex-shrink: 0;
+  font-weight: 500;
+  transition: background 0.15s;
 }
 
 .saveBtn:hover {
-  background: #357abd;
+  background: #2563eb;
 }
 
 .saveBtn:disabled {
-  background: #ccc;
+  background: #94a3b8;
   cursor: not-allowed;
 }
 
 .saveBtn.fullWidth {
   width: 100%;
-  padding: 8px 12px;
-  margin-top: 8px;
-  font-size: 13px;
-  border-radius: 6px;
+  padding: 10px 16px;
+  margin-top: 12px;
+  font-size: 14px;
 }
 
 .loading {
@@ -501,10 +587,52 @@
 
 .main {
   position: relative;
-  overflow: auto;
-  padding: 16px;
+  overflow: hidden;
+  padding: 0;
   min-width: 0;
   max-width: 960px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fabric visualization container */
+.fabricContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.fabricFixedHeader {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+.fabricControls {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.fabricColumnHeaders {
+  display: grid;
+  grid-template-columns: 160px 160px 160px;
+  gap: 8px 160px;
+  width: fit-content;
+}
+
+.fabricColumnHeaders .gridHeader {
+  position: static;
+}
+
+.fabricScrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 16px;
 }
 
 .empty {
@@ -537,9 +665,6 @@
   padding: 8px;
   background: #e8e8e8;
   border-radius: 6px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 
 .gridRow {
@@ -716,7 +841,7 @@
 }
 
 .crossbarPath.active {
-  stroke: #2a2;
+  stroke: #1a8a1a;
   stroke-width: 2;
 }
 
@@ -727,6 +852,11 @@
 
 .crossbarPath.muted {
   opacity: 0.2;
+}
+
+.crossbarPath.mult {
+  stroke: #B8F0B8;
+  stroke-width: 1.5;
 }
 
 /* Inter-column cables SVG */
@@ -752,13 +882,18 @@
 }
 
 .interCable.active {
-  stroke: #2a2;
+  stroke: #1a8a1a;
   stroke-width: 2.5;
 }
 
 .interCable.chainHighlight {
   stroke: #f97316;
   stroke-width: 2.5;
+}
+
+.interCable.mult {
+  stroke: #B8F0B8;
+  stroke-width: 2;
 }
 
 .interCable.locked {
@@ -793,7 +928,7 @@
 .logControls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
 }
 

@@ -4,6 +4,14 @@ import { deriveInputs } from "./derive"
 import { FabricView } from "./FabricView"
 import { LogPanel } from "./LogPanel"
 import { ShortcutsDialog } from "./ShortcutsDialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import "./index.css"
 
 type LockMap = Record<number, Record<number, number>>
@@ -267,6 +275,7 @@ export default function App() {
   // Relay mode - toggle with 'c' key
   const [relayMode, setRelayMode] = useState(false)
   const [showFirmwareFills, setShowFirmwareFills] = useState(false)
+  const [showMults, setShowMults] = useState(false)
 
   // Shortcuts dialog - toggle with 'k' key
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -1652,55 +1661,26 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="title">
-          clos2me - clos visualizer
-          <span className="buildInfo">{__GIT_BRANCH__} @ {__GIT_COMMIT__}</span>
-        </div>
-        {relayMode && (
-          <div className="relayModeIndicator">
-            [C] Relay Mode
+      <TooltipProvider>
+        <header className="topbar">
+          <div className="title">
+            clos2me - clos visualizer
+            <span className="buildInfo">{__GIT_BRANCH__} @ {__GIT_COMMIT__}</span>
           </div>
-        )}
-        <select
-          className="solverSelect"
-          value={solver}
-          onChange={e => handleSolverChange(e.target.value as SolverType)}
-          disabled={loading || solverRunning}
-        >
-          <option value="clos">clos_mult_router</option>
-          <option value="pp128">pp128_solver (8×8)</option>
-        </select>
-        <label className="stabilityToggle">
-          <input
-            type="checkbox"
-            checked={showFirmwareFills}
-            onChange={e => setShowFirmwareFills(e.target.checked)}
-          />
-          Show Firmware Fills
-        </label>
-        <label className="stabilityToggle">
-          <input
-            type="checkbox"
-            checked={strictStability}
-            onChange={e => setStrictStability(e.target.checked)}
-          />
-          Strict Stability
-        </label>
-        <label className="stabilityToggle">
-          <input
-            type="checkbox"
-            checked={incremental}
-            onChange={e => setIncremental(e.target.checked)}
-          />
-          Incremental Repair
-        </label>
-        {solverRunning && (
-          <button className="killRunBtn" onClick={cancelSolverRun}>
-            Kill Run
-          </button>
-        )}
-      </header>
+          {relayMode && (
+            <div className="relayModeIndicator">
+              [C] Relay Mode
+            </div>
+          )}
+          <div style={{ flex: 1 }} />
+
+          {solverRunning && (
+            <Button variant="destructive" size="sm" onClick={cancelSolverRun}>
+              Kill Run
+            </Button>
+          )}
+        </header>
+      </TooltipProvider>
 
       {error && <div className="error">{error}</div>}
 
@@ -1725,27 +1705,15 @@ export default function App() {
         <aside className="sidebar">
           {/* File Manager Section with Tabs */}
           <div className="panel">
-            {/* Tab buttons */}
-            <div className="fileTabs">
-              <button
-                className={`fileTab ${activeTab === 'routes' ? 'active' : ''}`}
-                onClick={() => setActiveTab('routes')}
-              >
-                Routes
-              </button>
-              <button
-                className={`fileTab ${activeTab === 'states' ? 'active' : ''}`}
-                onClick={() => setActiveTab('states')}
-              >
-                States
-              </button>
-            </div>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'routes' | 'states')}>
+              <TabsList className="mb-3">
+                <TabsTrigger value="routes">Routes</TabsTrigger>
+                <TabsTrigger value="states">States</TabsTrigger>
+              </TabsList>
 
-            {/* Routes Tab Content */}
-            {activeTab === 'routes' && (
-              <>
+              <TabsContent value="routes" className="mt-0">
                 <div className="routeSelector" ref={dropdownRef}>
-              {/* Dropdown trigger */}
+                  {/* Dropdown trigger */}
               <button
                 className={`routeDropdownTrigger ${modifiedFile ? "hasChanges" : ""}`}
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -1955,39 +1923,87 @@ export default function App() {
             </div>
 
             {/* Preserve State selector - controls delta tracking across file switches */}
-            <div className="preserveStateControls">
-              <div className="preserveStateLabel">Preserve state</div>
-              <label className="preserveStateOption">
-                <input
-                  type="radio"
-                  name="preserveMode"
-                  value="all"
-                  checked={preserveMode === "all"}
-                  onChange={() => setPreserveMode("all")}
-                />
-                All
-              </label>
-              <label className="preserveStateOption">
-                <input
-                  type="radio"
-                  name="preserveMode"
-                  value="locked"
-                  checked={preserveMode === "locked"}
-                  onChange={() => setPreserveMode("locked")}
-                />
-                Locked paths only
-              </label>
-              <label className="preserveStateOption">
-                <input
-                  type="radio"
-                  name="preserveMode"
-                  value="none"
-                  checked={preserveMode === "none"}
-                  onChange={() => setPreserveMode("none")}
-                />
-                None
-              </label>
-            </div>
+            <TooltipProvider>
+              <div className="preserveStateControls">
+                <div className="preserveStateLabel">Preserve state</div>
+                <RadioGroup value={preserveMode} onValueChange={(v) => setPreserveMode(v as PreserveMode)} className="flex flex-col gap-2.5 mt-2">
+                  <div className="flex items-center gap-2.5">
+                    <RadioGroupItem value="all" id="preserve-all" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="preserve-all" className="cursor-pointer text-sm">All</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Keep all routes when switching files</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <RadioGroupItem value="locked" id="preserve-locked" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="preserve-locked" className="cursor-pointer text-sm">Locked paths only</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Only preserve locked routes when switching files</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <RadioGroupItem value="none" id="preserve-none" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="preserve-none" className="cursor-pointer text-sm">None</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Clear all routes when switching files</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Calculation Options */}
+              <div className="calcOptionsPanel">
+                <div className="preserveStateLabel">Calculation Options</div>
+                <div className="flex flex-col gap-3 mt-2">
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      id="strictStability"
+                      checked={strictStability}
+                      onCheckedChange={(checked) => setStrictStability(checked === true)}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="strictStability" className="cursor-pointer text-sm">
+                          Strict Stability
+                        </Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Require stable routing without rearrangements</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      id="incremental"
+                      checked={incremental}
+                      onCheckedChange={(checked) => setIncremental(checked === true)}
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label htmlFor="incremental" className="cursor-pointer text-sm">
+                          Incremental Repair
+                        </Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Try to repair routes incrementally instead of full recalculation</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </div>
+            </TooltipProvider>
 
             {/* Hidden file input for upload */}
             <input
@@ -2012,12 +2028,9 @@ export default function App() {
                 Save Changes
               </button>
             )}
-              </>
-            )}
+              </TabsContent>
 
-            {/* States Tab Content */}
-            {activeTab === 'states' && (
-              <>
+              <TabsContent value="states" className="mt-0">
                 <div className="routeSelector" ref={dropdownRef}>
                   {/* Dropdown trigger */}
                   <button
@@ -2194,15 +2207,15 @@ export default function App() {
                     Save State
                   </button>
                 )}
-              </>
-            )}
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Crossbar Size */}
           <div className="panel">
             <div className="panelTitle">Crossbar Size</div>
             <div className="sizeSelector sidebar">
-              <input
+              <Input
                 type="number"
                 min={2}
                 step={1}
@@ -2216,6 +2229,7 @@ export default function App() {
                   }
                 }}
                 disabled={loading}
+                className="w-full"
               />
               <datalist id="size-options">
                 {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
@@ -2229,13 +2243,14 @@ export default function App() {
           <div className="panel">
             <div className="panelTitle">Locks ({lockList.length})</div>
             {lockList.length > 0 && (
-              <button
-                className="saveBtn fullWidth"
+              <Button
+                variant="secondary"
+                className="w-full"
                 onClick={clearAllLocks}
                 disabled={loading}
               >
                 Clear All Locks
-              </button>
+              </Button>
             )}
             <div className="list">
               {lockList.length === 0 && <div className="hint">No locks</div>}
@@ -2255,8 +2270,8 @@ export default function App() {
           {/* Active Inputs Section */}
           <div className="panel">
             <div className="panelTitle">Active Inputs ({inputs.length})</div>
-            <input
-              className="search"
+            <Input
+              className="mb-2"
               placeholder="Filter by input id"
               value={filter}
               onChange={e => setFilter(e.target.value)}
@@ -2300,6 +2315,13 @@ export default function App() {
               activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
               relayMode={relayMode}
               showFirmwareFills={showFirmwareFills}
+              onShowFirmwareFillsChange={setShowFirmwareFills}
+              showMults={showMults}
+              onShowMultsChange={setShowMults}
+              solver={solver}
+              onSolverChange={handleSolverChange}
+              loading={loading}
+              solverRunning={solverRunning}
               chainHighlightInputs={chainHighlightInputs}
               onChainHover={handleChainHover}
             />

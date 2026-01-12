@@ -4,6 +4,12 @@ import { Crossbar } from "./Crossbar"
 import type { CrossbarRef } from "./Crossbar"
 import { RelayMatrix } from "./RelayMatrix"
 import { portToProPatch, parsePortId } from "./utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
+
+type SolverType = "clos" | "pp128"
 
 type Props = {
   state: FabricState
@@ -22,7 +28,15 @@ type Props = {
   activeOutputCount?: number
   // Relay mode
   relayMode?: boolean
+  // Visualization controls (moved from topbar)
   showFirmwareFills?: boolean
+  onShowFirmwareFillsChange?: (show: boolean) => void
+  showMults?: boolean
+  onShowMultsChange?: (show: boolean) => void
+  solver?: SolverType
+  onSolverChange?: (solver: SolverType) => void
+  loading?: boolean
+  solverRunning?: boolean
   // Chain highlighting for PropatchMD files
   chainHighlightInputs?: number[]
   onChainHover?: (inputId: number | null, event?: React.MouseEvent) => void
@@ -91,6 +105,13 @@ export function FabricView({
   activeOutputCount,
   relayMode,
   showFirmwareFills = false,
+  onShowFirmwareFillsChange,
+  showMults = false,
+  onShowMultsChange,
+  solver = 'clos',
+  onSolverChange,
+  loading = false,
+  solverRunning = false,
   chainHighlightInputs = [],
   onChainHover
 }: Props) {
@@ -100,6 +121,22 @@ export function FabricView({
   const ingressRefs = useRef<(CrossbarRef | null)[]>([])
   const spineRefs = useRef<(CrossbarRef | null)[]>([])
   const egressRefs = useRef<(CrossbarRef | null)[]>([])
+
+  // Identify multicast inputs (inputs with more than 1 output)
+  const multInputs = useMemo(() => {
+    const outputCounts: Record<number, number> = {}
+    for (let port = 1; port <= state.MAX_PORTS; port++) {
+      const owner = state.s3_port_owner[port]
+      if (owner && owner > 0) {
+        outputCounts[owner] = (outputCounts[owner] || 0) + 1
+      }
+    }
+    return new Set(
+      Object.entries(outputCounts)
+        .filter(([, count]) => count > 1)
+        .map(([id]) => Number(id))
+    )
+  }, [state])
 
   // Hover tracking for relay mode
   const [hoveredCrossbar, setHoveredCrossbar] = useState<HoveredCrossbar | null>(null)
@@ -742,120 +779,206 @@ export function FabricView({
   }, [state, cables])
 
   return (
-    <div className="fabricGrid" ref={containerRef}>
-      {/* Inter-column cables SVG */}
-      {cablePositions && (
-        <svg className="cablesSvg" width={cablePositions.width} height={cablePositions.height}>
-          {cablePositions.cables.map((c, idx) => {
-            const isActive = c.owner === highlightInput
-            const isLockedActive = isActive && highlightMode === 'locked'
-            const isChainHighlight = chainHighlightInputs.includes(c.owner)
-            const midX = (c.x1 + c.x2) / 2
+    <TooltipProvider>
+      <div className="fabricContainer">
+        {/* Fixed header with controls */}
+        <div className="fabricFixedHeader">
+          <div className="fabricControls">
+            <Select
+              value={solver}
+              onValueChange={(value) => onSolverChange?.(value as SolverType)}
+              disabled={loading || solverRunning}
+            >
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Select solver" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="clos">clos_mult_router</SelectItem>
+                <SelectItem value="pp128">pp128_solver (8×8)</SelectItem>
+              </SelectContent>
+            </Select>
 
-            return (
-              <path
-                key={idx}
-                d={`M ${c.x1} ${c.y1} C ${midX} ${c.y1}, ${midX} ${c.y2}, ${c.x2} ${c.y2}`}
-                className={`interCable ${c.isFiller ? "filler" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
-                onClick={() => {
-                  if (c.owner > 0) onSelectInput(c.owner)
-                }}
-              />
-            )
-          })}
-        </svg>
-      )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-100 transition-colors" style={{ paddingLeft: 12, paddingRight: 12 }}>
+                  <Checkbox
+                    id="firmwareFills"
+                    checked={showFirmwareFills}
+                    onCheckedChange={(checked) => onShowFirmwareFillsChange?.(checked === true)}
+                  />
+                  <Label htmlFor="firmwareFills" className="cursor-pointer text-sm font-medium">
+                    Firmware Fills
+                  </Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={8}>
+                <p>Show firmware-generated fill routes in the visualization</p>
+              </TooltipContent>
+            </Tooltip>
 
-      {/* Column headers */}
-      <div className="gridHeader">Input{activeInputCount !== undefined ? ` (${activeInputCount})` : ''}</div>
-      <div className="gridHeader">Spine</div>
-      <div className="gridHeader">Output{activeOutputCount !== undefined ? ` (${activeOutputCount})` : ''}</div>
-
-      {/* 10 rows of crossbars */}
-      {Array.from({ length: state.TOTAL_BLOCKS }).map((_, row) => (
-        <div key={row} className="gridRow">
-          <div
-            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
-            onMouseEnter={(e) => handleCrossbarHover('ingress', row, e)}
-            onMouseLeave={handleCrossbarLeave}
-          >
-            <Crossbar
-              ref={el => { ingressRefs.current[row] = el }}
-              {...crossbars.ingress[row]}
-              highlightInput={highlightInput}
-              highlightMode={highlightMode}
-              onHoverInput={onHoverInput}
-              onSelectInput={onSelectInput}
-              onRouteClick={onRouteClick ? (label, isInput, e) => {
-                // Only handle IN port clicks on ingress (selecting input)
-                if (isInput) {
-                  const portId = parsePortId(label)
-                  console.log(`[debug] FabricView ingress IN click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}`)
-                  if (!isNaN(portId)) onRouteClick(portId, true, e)
-                }
-              } : undefined}
-              pendingInput={pendingInput}
-              chainHighlightInputs={chainHighlightInputs}
-              onChainHover={onChainHover}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-slate-100 transition-colors" style={{ paddingLeft: 12, paddingRight: 12 }}>
+                  <Checkbox
+                    id="multsOn"
+                    checked={showMults}
+                    onCheckedChange={(checked) => onShowMultsChange?.(checked === true)}
+                  />
+                  <Label htmlFor="multsOn" className="cursor-pointer text-sm font-medium">
+                    Mults On
+                  </Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={8}>
+                <p>Highlight multicast routes (inputs with multiple outputs) in light green</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <div
-            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
-            onMouseEnter={(e) => handleCrossbarHover('spine', row, e)}
-            onMouseLeave={handleCrossbarLeave}
-          >
-            <Crossbar
-              ref={el => { spineRefs.current[row] = el }}
-              {...crossbars.spine[row]}
-              highlightInput={highlightInput}
-              highlightMode={highlightMode}
-              onHoverInput={onHoverInput}
-              onSelectInput={onSelectInput}
-              chainHighlightInputs={chainHighlightInputs}
-              onChainHover={onChainHover}
-            />
-          </div>
-          <div
-            className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
-            onMouseEnter={(e) => handleCrossbarHover('egress', row, e)}
-            onMouseLeave={handleCrossbarLeave}
-          >
-            <Crossbar
-              ref={el => { egressRefs.current[row] = el }}
-              {...crossbars.egress[row]}
-              highlightInput={highlightInput}
-              highlightMode={highlightMode}
-              onHoverInput={onHoverInput}
-              onSelectInput={onSelectInput}
-              onRouteClick={onRouteClick ? (label, isInput, e) => {
-                // Only handle OUT port clicks on egress (selecting output)
-                if (!isInput) {
-                  const portId = parsePortId(label)
-                  console.log(`[debug] FabricView egress OUT click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}, altKey=${e.altKey}`)
-                  if (!isNaN(portId)) onRouteClick(portId, false, e)
-                }
-              } : undefined}
-              pendingOutputs={pendingOutputs}
-              chainHighlightInputs={chainHighlightInputs}
-              onChainHover={onChainHover}
-            />
+
+          {/* Column headers at bottom of fixed section */}
+          <div className="fabricColumnHeaders">
+            <div className="gridHeader">Input{activeInputCount !== undefined ? ` (${activeInputCount})` : ''}</div>
+            <div className="gridHeader">Spine</div>
+            <div className="gridHeader">Output{activeOutputCount !== undefined ? ` (${activeOutputCount})` : ''}</div>
           </div>
         </div>
-      ))}
 
-      {/* Relay Matrix Overlay */}
-      {relayMode && relayData && hoveredCrossbar && (
-        <RelayMatrix
-          title={relayData.title}
-          inLabels={relayData.inLabels}
-          outLabels={relayData.outLabels}
-          relays={relayData.relays}
-          selectedInput={selectedInput}
-          position={hoveredCrossbar.position}
-          onHover={cancelRelayClose}
-          onClose={handleCrossbarLeave}
-        />
-      )}
-    </div>
+        {/* Scrollable crosspoints */}
+        <div className="fabricScrollable">
+          <div className="fabricGrid" ref={containerRef}>
+            {/* Inter-column cables SVG */}
+            {cablePositions && (
+              <svg className="cablesSvg" width={cablePositions.width} height={cablePositions.height}>
+                {[...cablePositions.cables]
+                  .sort((a, b) => {
+                    const aIsActive = a.owner === highlightInput
+                    const bIsActive = b.owner === highlightInput
+                    const aIsMult = showMults && multInputs.has(a.owner)
+                    const bIsMult = showMults && multInputs.has(b.owner)
+
+                    // Active always on top
+                    if (aIsActive && !bIsActive) return 1
+                    if (!aIsActive && bIsActive) return -1
+                    // Mults on bottom (non-mult above mult)
+                    if (aIsMult && !bIsMult) return -1
+                    if (!aIsMult && bIsMult) return 1
+                    return 0
+                  })
+                  .map((c, idx) => {
+                  const isActive = c.owner === highlightInput
+                  const isLockedActive = isActive && highlightMode === 'locked'
+                  const isChainHighlight = chainHighlightInputs.includes(c.owner)
+                  const isMult = showMults && multInputs.has(c.owner)
+                  const midX = (c.x1 + c.x2) / 2
+
+                  return (
+                    <path
+                      key={idx}
+                      d={`M ${c.x1} ${c.y1} C ${midX} ${c.y1}, ${midX} ${c.y2}, ${c.x2} ${c.y2}`}
+                      className={`interCable ${c.isFiller ? "filler" : ""} ${isMult ? "mult" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
+                      onClick={() => {
+                        if (c.owner > 0) onSelectInput(c.owner)
+                      }}
+                    />
+                  )
+                })}
+              </svg>
+            )}
+
+            {/* Rows of crossbars */}
+            {Array.from({ length: state.TOTAL_BLOCKS }).map((_, row) => (
+              <div key={row} className="gridRow">
+                <div
+                  className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+                  onMouseEnter={(e) => handleCrossbarHover('ingress', row, e)}
+                  onMouseLeave={handleCrossbarLeave}
+                >
+                  <Crossbar
+                    ref={el => { ingressRefs.current[row] = el }}
+                    {...crossbars.ingress[row]}
+                    highlightInput={highlightInput}
+                    highlightMode={highlightMode}
+                    onHoverInput={onHoverInput}
+                    onSelectInput={onSelectInput}
+                    onRouteClick={onRouteClick ? (label, isInput, e) => {
+                      // Only handle IN port clicks on ingress (selecting input)
+                      if (isInput) {
+                        const portId = parsePortId(label)
+                        console.log(`[debug] FabricView ingress IN click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}`)
+                        if (!isNaN(portId)) onRouteClick(portId, true, e)
+                      }
+                    } : undefined}
+                    pendingInput={pendingInput}
+                    chainHighlightInputs={chainHighlightInputs}
+                    onChainHover={onChainHover}
+                    showMults={showMults}
+                    multInputs={multInputs}
+                  />
+                </div>
+                <div
+                  className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+                  onMouseEnter={(e) => handleCrossbarHover('spine', row, e)}
+                  onMouseLeave={handleCrossbarLeave}
+                >
+                  <Crossbar
+                    ref={el => { spineRefs.current[row] = el }}
+                    {...crossbars.spine[row]}
+                    highlightInput={highlightInput}
+                    highlightMode={highlightMode}
+                    onHoverInput={onHoverInput}
+                    onSelectInput={onSelectInput}
+                    chainHighlightInputs={chainHighlightInputs}
+                    onChainHover={onChainHover}
+                    showMults={showMults}
+                    multInputs={multInputs}
+                  />
+                </div>
+                <div
+                  className={`crossbarWrapper ${relayMode ? 'relayModeActive' : ''}`}
+                  onMouseEnter={(e) => handleCrossbarHover('egress', row, e)}
+                  onMouseLeave={handleCrossbarLeave}
+                >
+                  <Crossbar
+                    ref={el => { egressRefs.current[row] = el }}
+                    {...crossbars.egress[row]}
+                    highlightInput={highlightInput}
+                    highlightMode={highlightMode}
+                    onHoverInput={onHoverInput}
+                    onSelectInput={onSelectInput}
+                    onRouteClick={onRouteClick ? (label, isInput, e) => {
+                      // Only handle OUT port clicks on egress (selecting output)
+                      if (!isInput) {
+                        const portId = parsePortId(label)
+                        console.log(`[debug] FabricView egress OUT click: label=${label}, portId=${portId}, shiftKey=${e.shiftKey}, altKey=${e.altKey}`)
+                        if (!isNaN(portId)) onRouteClick(portId, false, e)
+                      }
+                    } : undefined}
+                    pendingOutputs={pendingOutputs}
+                    chainHighlightInputs={chainHighlightInputs}
+                    onChainHover={onChainHover}
+                    showMults={showMults}
+                    multInputs={multInputs}
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Relay Matrix Overlay */}
+            {relayMode && relayData && hoveredCrossbar && (
+              <RelayMatrix
+                title={relayData.title}
+                inLabels={relayData.inLabels}
+                outLabels={relayData.outLabels}
+                relays={relayData.relays}
+                selectedInput={selectedInput}
+                position={hoveredCrossbar.position}
+                onHover={cancelRelayClose}
+                onClose={handleCrossbarLeave}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </TooltipProvider>
   )
 }

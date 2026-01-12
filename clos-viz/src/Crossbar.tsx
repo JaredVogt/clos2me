@@ -26,6 +26,9 @@ type Props = {
   // Chain highlighting for PropatchMD files
   chainHighlightInputs?: number[]
   onChainHover?: (inputId: number | null, event?: React.MouseEvent) => void
+  // Multicast highlighting
+  showMults?: boolean
+  multInputs?: Set<number>
 }
 
 type PortPos = { x: number; y: number }
@@ -51,7 +54,9 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
     pendingInput,
     pendingOutputs = [],
     chainHighlightInputs = [],
-    onChainHover
+    onChainHover,
+    showMults = false,
+    multInputs = new Set()
   },
   ref
 ) {
@@ -168,7 +173,22 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
         {/* SVG for internal paths */}
         {positions && (
           <svg className="crossbarSvg" width={positions.width} height={positions.height}>
-            {paths.map((p, idx) => {
+            {[...paths]
+              .sort((a, b) => {
+                const aIsActive = a.owner === highlightInput
+                const bIsActive = b.owner === highlightInput
+                const aIsMult = showMults && multInputs.has(a.owner)
+                const bIsMult = showMults && multInputs.has(b.owner)
+
+                // Active always on top
+                if (aIsActive && !bIsActive) return 1
+                if (!aIsActive && bIsActive) return -1
+                // Mults on bottom (non-mult above mult)
+                if (aIsMult && !bIsMult) return -1
+                if (!aIsMult && bIsMult) return 1
+                return 0
+              })
+              .map((p, idx) => {
               const from = positions.inPorts[p.inIdx]
               const to = positions.outPorts[p.outIdx]
               if (!from || !to) return null
@@ -176,6 +196,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
               const isActive = p.owner === highlightInput
               const isLockedActive = isActive && highlightMode === 'locked'
               const isChainHighlight = chainHighlightInputs.includes(p.owner)
+              const isMult = showMults && multInputs.has(p.owner)
 
               // Draw Bezier curve
               const midX = (from.x + to.x) / 2
@@ -184,7 +205,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 <path
                   key={idx}
                   d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
-                  className={`crossbarPath ${p.isFiller ? "filler" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
+                  className={`crossbarPath ${p.isFiller ? "filler" : ""} ${isMult ? "mult" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
                   onClick={() => {
                     if (p.owner > 0) onSelectInput(p.owner)
                   }}

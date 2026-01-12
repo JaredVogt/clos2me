@@ -28,6 +28,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
     define: {
       __GIT_BRANCH__: JSON.stringify(gitInfo.branch),
       __GIT_COMMIT__: JSON.stringify(gitInfo.commit),
