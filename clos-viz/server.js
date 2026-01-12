@@ -333,6 +333,68 @@ function convertPp128OutputToState(pp128Output, inputRoutes) {
   return state
 }
 
+// ============================================================================
+// PropatchMD session file conversion
+// ============================================================================
+
+// Parse PropatchMD .propatchs JSON and convert to route text format
+// CRITICAL: Each chain has MULTIPLE hops - extract cell-to-cell routes
+// For "Bass Nobel In": MIC [A1] → NEVE [A1→F5] → SUMMIT [E5→E5] → AVID [C1]
+// Routes: (1,1), (45,37), (37,17) - THREE routes per chain!
+// PropatchMD uses 0-based port numbers, clos2me uses 1-based
+function parsePropatchsToRoutes(data) {
+  const routes = {}  // input -> Set of outputs
+
+  for (const chain of Object.values(data.chains || {})) {
+    // Skip inactive chains (cond.active === false)
+    if (chain.cond?.active === false) continue
+
+    for (const lane of chain.lanes || []) {
+      const cells = lane.cells || []
+
+      // Extract port info from each cell
+      // L channel: from = output port (where signal leaves), to = input port (where signal enters)
+      const cellPorts = cells.map(cell => {
+        let fromPort = null  // output from this cell
+        let toPort = null    // input to this cell
+
+        for (const item of cell.items || []) {
+          const L = item.L
+          if (L && L.L) {
+            if (L.L.from && L.L.from.port !== undefined) {
+              fromPort = L.L.from.port
+            }
+            if (L.L.to && L.L.to.port !== undefined) {
+              toPort = L.L.to.port
+            }
+          }
+        }
+        return { fromPort, toPort }
+      })
+
+      // Generate routes between consecutive cells
+      // Route = current cell's fromPort → next cell's toPort
+      for (let i = 0; i < cellPorts.length - 1; i++) {
+        const currFrom = cellPorts[i].fromPort
+        const nextTo = cellPorts[i + 1].toPort
+
+        if (currFrom !== null && nextTo !== null) {
+          const input = currFrom + 1   // 0-based → 1-based
+          const output = nextTo + 1
+          if (!routes[input]) routes[input] = new Set()
+          routes[input].add(output)
+        }
+      }
+    }
+  }
+
+  // Convert to route text: "input.output1.output2"
+  return Object.entries(routes)
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    .map(([input, outputs]) => `${input}.${[...outputs].sort((a, b) => a - b).join('.')}`)
+    .join('\n')
+}
+
 app.use(cors())
 app.use(express.json())
 
@@ -340,11 +402,17 @@ app.use(express.json())
 const routeStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, ROUTES_DIR),
   filename: (req, file, cb) => {
-    // Sanitize filename and add size suffix
+    // Sanitize filename
     let name = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")
-    // Strip existing extensions to get base name
+
+    // PropatchMD files: keep .propatchs extension as-is (always 8×8)
+    if (name.endsWith('.propatchs')) {
+      cb(null, name)
+      return
+    }
+
+    // Route files: strip existing extensions and add size suffix
     const baseName = name.replace(/\.\d+\.txt$/, "").replace(/\.txt$/, "")
-    // Add current size suffix
     const finalName = `${baseName}.${currentSize}.txt`
     cb(null, finalName)
   }
@@ -368,13 +436,14 @@ const uploadState = multer({ storage: stateStorage })
 
 // GET /api/routes - List route files filtered by crossbar size
 // Query param: ?size=10 (defaults to current size)
+// Includes .propatchs files when size=8 (PropatchMD sessions are always 64 ports)
 app.get("/api/routes", (req, res) => {
   try {
     const size = parseInt(req.query.size, 10) || currentSize
-    const suffix = `.${size}.txt`
+    const txtSuffix = `.${size}.txt`
 
     const files = fs.readdirSync(ROUTES_DIR)
-      .filter(f => f.endsWith(suffix))
+      .filter(f => f.endsWith(txtSuffix) || (size === 8 && f.endsWith('.propatchs')))
       .sort()
     res.json({ files })
   } catch (err) {
@@ -383,6 +452,7 @@ app.get("/api/routes", (req, res) => {
 })
 
 // GET /api/routes/:filename - Return raw route file contents
+// For .propatchs files, converts JSON to route text format
 app.get("/api/routes/:filename", (req, res) => {
   const { filename } = req.params
   const filepath = path.join(ROUTES_DIR, filename)
@@ -398,6 +468,18 @@ app.get("/api/routes/:filename", (req, res) => {
 
   try {
     const contents = fs.readFileSync(filepath, "utf-8")
+
+    // If propatchs file, convert JSON to route text format
+    if (filename.endsWith('.propatchs')) {
+      try {
+        const data = JSON.parse(contents)
+        const routeText = parsePropatchsToRoutes(data)
+        return res.type("text/plain").send(routeText)
+      } catch (parseErr) {
+        return res.status(500).json({ error: `Failed to parse propatchs: ${parseErr.message}` })
+      }
+    }
+
     res.type("text/plain").send(contents)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -951,12 +1033,29 @@ app.get("/api/process-stream", (req, res) => {
   // Clear locks when loading a file (but preserve lastState for delta tracking)
   lastLocks = []
 
+  // Convert propatchs files to route text format
+  let effectiveRoutePath = routePath
+  if (filename.endsWith('.propatchs')) {
+    try {
+      const contents = fs.readFileSync(routePath, "utf-8")
+      const data = JSON.parse(contents)
+      const routeText = parsePropatchsToRoutes(data)
+      const tmpPropatchs = path.join(__dirname, ".tmp_propatchs_routes.txt")
+      fs.writeFileSync(tmpPropatchs, routeText)
+      effectiveRoutePath = tmpPropatchs
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: "Failed to convert propatchs: " + err.message })}\n\n`)
+      res.end()
+      return
+    }
+  }
+
   // Handle pp128 solver differently
   if (usePp128) {
     // Read route file and convert to pp128 format
     let routeText
     try {
-      routeText = fs.readFileSync(routePath, "utf-8")
+      routeText = fs.readFileSync(effectiveRoutePath, "utf-8")
     } catch (err) {
       res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to read route file: ${err.message}` })}\n\n`)
       res.end()
@@ -1081,7 +1180,7 @@ app.get("/api/process-stream", (req, res) => {
   const tmpFiles = [tmpJson, tmpPrevState]
 
   // Build args array for spawn
-  const args = [routePath, "--json", tmpJson, "--size", String(currentSize)]
+  const args = [effectiveRoutePath, "--json", tmpJson, "--size", String(currentSize)]
 
   if (lastState) {
     fs.writeFileSync(tmpPrevState, JSON.stringify(lastState))

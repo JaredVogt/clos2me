@@ -195,7 +195,15 @@ export default function App() {
       effectiveSize = 8
     }
 
-    // Re-run solver with current routes if we have state
+    // If we have a selected route file, re-process it with the new solver
+    // This handles the case where previous solver failed and state is empty
+    // Pass newSolver explicitly since setSolver is async and state hasn't updated yet
+    if (selectedRoute) {
+      await processRouteFile(selectedRoute, newSolver)
+      return
+    }
+
+    // Fallback: Re-run solver with current routes if we have state
     if (state) {
       const currentRoutes = buildRoutesFromState(state)
       if (Object.keys(currentRoutes).length > 0) {
@@ -278,10 +286,13 @@ export default function App() {
 
   const inputs = useMemo(() => (state ? deriveInputs(state) : []), [state])
 
-  // Helper to strip size suffix from filename for display
-  // e.g., "stress_stability.10.txt" -> "stress_stability"
-  // e.g., "my_state.10.json" -> "my_state"
+  // Helper to format filename for display
+  // Route/state files: "stress_stability.10.txt" -> "stress_stability"
+  // PropatchMD files: "Tom.propatchs" -> "Tom.propatchs" (show extension for distinction)
   const displayName = useCallback((filename: string) => {
+    if (filename.endsWith('.propatchs')) {
+      return filename  // Show full name with extension
+    }
     return filename.replace(/\.\d+\.(txt|json)$/, "")
   }, [])
 
@@ -922,7 +933,7 @@ export default function App() {
     }
   }
 
-  async function processRouteFile(filename: string) {
+  async function processRouteFile(filename: string, solverOverride?: SolverType) {
     setError(null)
     cancelRequestedRef.current = false
     setRunSummary(null)
@@ -959,7 +970,8 @@ export default function App() {
     }
 
     // Use SSE for streaming solver output
-    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}&incremental=${incremental}&solver=${solver}`
+    const effectiveSolver = solverOverride ?? solver
+    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}&incremental=${incremental}&solver=${effectiveSolver}`
     const eventSource = new EventSource(url)
     eventSourceRef.current = eventSource
 
@@ -1939,7 +1951,7 @@ export default function App() {
             <input
               ref={uploadRef}
               type="file"
-              accept=".txt"
+              accept=".txt,.propatchs"
               style={{ display: "none" }}
               onChange={e => {
                 const f = e.target.files?.[0]
