@@ -27,7 +27,22 @@
       "mcp__filesystem__list_directory",
       "Skill(portclaim)",
       "Bash(~/.claude/skills/portclaim/scripts/portclaim.py:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git checkout:*)",
+      "Bash(file:*)",
+      "Bash(/Users/jaredvogt/projects/pp128-fw/comparison/pp128_solver:*)",
+      "Bash(node:*)",
+      "Bash(timeout 10 curl:*)",
+      "Bash(git add:*)",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__search_files",
+      "Bash(npx tailwindcss:*)",
+      "Bash(./node_modules/.bin/tailwindcss init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ]
   }
 }

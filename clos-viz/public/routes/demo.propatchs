@@ -1,0 +1,6775 @@
+{
+  "id": "MCJZ6CG6_3AW",
+  "name": "Demo",
+  "created": "250630203538",
+  "meta": {
+    "locked": false,
+    "created": "250630203538",
+    "modified": "260111233330",
+    "accessed": "260111233330",
+    "immutable": false,
+    "schema": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "devices": {
+    "MCJZ6CG6_7D": {
+      "id": "MCJZ6CG6_7D",
+      "name": "Fairchild 666",
+      "product": {
+        "name": "666",
+        "mfr": "Fairchild"
+      },
+      "nodes": {
+        "MCJZ6CG6_7E": {
+          "id": "MCJZ6CG6_7E",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_7D",
+            "name": "Fairchild 666",
+            "product": {
+              "name": "666",
+              "mfr": "Fairchild"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 8,
+              "to": false,
+              "from": true,
+              "portId": "B1"
+            },
+            "to": {
+              "port": 8,
+              "to": true,
+              "from": false,
+              "portId": "B1"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_7F": {
+      "id": "MCJZ6CG6_7F",
+      "name": "TK Audio Transceiver",
+      "product": {
+        "name": "Transceiver",
+        "mfr": "TK Audio"
+      },
+      "nodes": {
+        "MCJZ6CG6_7G": {
+          "id": "MCJZ6CG6_7G",
+          "name": "line->guitar 1",
+          "device": {
+            "id": "MCJZ6CG6_7F",
+            "name": "TK Audio Transceiver",
+            "product": {
+              "name": "Transceiver",
+              "mfr": "TK Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 0,
+              "to": false,
+              "from": true,
+              "portId": "A1"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7H": {
+          "id": "MCJZ6CG6_7H",
+          "name": "line->guitar 2",
+          "device": {
+            "id": "MCJZ6CG6_7F",
+            "name": "TK Audio Transceiver",
+            "product": {
+              "name": "Transceiver",
+              "mfr": "TK Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 1,
+              "to": false,
+              "from": true,
+              "portId": "A2"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7I": {
+          "id": "MCJZ6CG6_7I",
+          "name": "guitar->line 1",
+          "device": {
+            "id": "MCJZ6CG6_7F",
+            "name": "TK Audio Transceiver",
+            "product": {
+              "name": "Transceiver",
+              "mfr": "TK Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 0,
+              "to": true,
+              "from": false,
+              "portId": "A1"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7J": {
+          "id": "MCJZ6CG6_7J",
+          "name": "guitar->line 2",
+          "device": {
+            "id": "MCJZ6CG6_7F",
+            "name": "TK Audio Transceiver",
+            "product": {
+              "name": "Transceiver",
+              "mfr": "TK Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 1,
+              "to": true,
+              "from": false,
+              "portId": "A2"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_7K": {
+      "id": "MCJZ6CG6_7K",
+      "name": "Avid MTRX II",
+      "product": {
+        "name": "MTRX II",
+        "mfr": "Avid"
+      },
+      "nodes": {
+        "MCJZ6CG6_7L": {
+          "id": "MCJZ6CG6_7L",
+          "name": "1",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 2,
+              "to": false,
+              "from": true,
+              "portId": "A3"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7M": {
+          "id": "MCJZ6CG6_7M",
+          "name": "2",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 3,
+              "to": false,
+              "from": true,
+              "portId": "A4"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7N": {
+          "id": "MCJZ6CG6_7N",
+          "name": "3",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 4,
+              "to": false,
+              "from": true,
+              "portId": "A5"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7O": {
+          "id": "MCJZ6CG6_7O",
+          "name": "4",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 5,
+              "to": false,
+              "from": true,
+              "portId": "A6"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7P": {
+          "id": "MCJZ6CG6_7P",
+          "name": "5",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 6,
+              "to": false,
+              "from": true,
+              "portId": "A7"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7Q": {
+          "id": "MCJZ6CG6_7Q",
+          "name": "6",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 7,
+              "to": false,
+              "from": true,
+              "portId": "A8"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7R": {
+          "id": "MCJZ6CG6_7R",
+          "name": "1",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 2,
+              "to": true,
+              "from": false,
+              "portId": "A3"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7S": {
+          "id": "MCJZ6CG6_7S",
+          "name": "2",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 3,
+              "to": true,
+              "from": false,
+              "portId": "A4"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7T": {
+          "id": "MCJZ6CG6_7T",
+          "name": "3",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 4,
+              "to": true,
+              "from": false,
+              "portId": "A5"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7U": {
+          "id": "MCJZ6CG6_7U",
+          "name": "4",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 5,
+              "to": true,
+              "from": false,
+              "portId": "A6"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7V": {
+          "id": "MCJZ6CG6_7V",
+          "name": "5",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 6,
+              "to": true,
+              "from": false,
+              "portId": "A7"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_7W": {
+          "id": "MCJZ6CG6_7W",
+          "name": "6",
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_1",
+              "name": "bump",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 7,
+              "to": true,
+              "from": false,
+              "portId": "A8"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_F3": {
+          "id": "MCJZ6CG6_F3",
+          "name": "1-2",
+          "L": {
+            "from": {
+              "port": 2,
+              "to": false,
+              "from": true,
+              "portId": "A3"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 3,
+              "to": false,
+              "from": true,
+              "portId": "A4"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [],
+          "device": {
+            "id": "MCJZ6CG6_7K",
+            "name": "Avid MTRX II",
+            "product": {
+              "name": "MTRX II",
+              "mfr": "Avid"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_7X": {
+      "id": "MCJZ6CG6_7X",
+      "name": "RAT>DM100",
+      "product": {
+        "mfr": "RAT>DM100"
+      },
+      "nodes": {
+        "MCJZ6CG6_7Y": {
+          "id": "MCJZ6CG6_7Y",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_7X",
+            "name": "RAT>DM100",
+            "product": {
+              "mfr": "RAT>DM100"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 9,
+              "to": false,
+              "from": true,
+              "portId": "B2"
+            },
+            "to": {
+              "port": 9,
+              "to": true,
+              "from": false,
+              "portId": "B2"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_7Z": {
+      "id": "MCJZ6CG6_7Z",
+      "name": "DeltaLab Effectron",
+      "product": {
+        "name": "Effectron",
+        "mfr": "DeltaLab"
+      },
+      "nodes": {
+        "MCJZ6CG6_80": {
+          "id": "MCJZ6CG6_80",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_7Z",
+            "name": "DeltaLab Effectron",
+            "product": {
+              "name": "Effectron",
+              "mfr": "DeltaLab"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 10,
+              "to": false,
+              "from": true,
+              "portId": "B3"
+            },
+            "to": {
+              "port": 10,
+              "to": true,
+              "from": false,
+              "portId": "B3"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_81": {
+      "id": "MCJZ6CG6_81",
+      "name": "Binson Effectron 2",
+      "product": {
+        "name": "Effectron",
+        "mfr": "Binson"
+      },
+      "nodes": {
+        "MCJZ6CG6_82": {
+          "id": "MCJZ6CG6_82",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_81",
+            "name": "Binson Effectron 2",
+            "product": {
+              "name": "Effectron",
+              "mfr": "Binson"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 11,
+              "to": false,
+              "from": true,
+              "portId": "B4"
+            },
+            "to": {
+              "port": 11,
+              "to": true,
+              "from": false,
+              "portId": "B4"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_83": {
+      "id": "MCJZ6CG6_83",
+      "name": "Surfy SurfyBear",
+      "product": {
+        "name": "SurfyBear",
+        "mfr": "Surfy"
+      },
+      "nodes": {
+        "MCJZ6CG6_84": {
+          "id": "MCJZ6CG6_84",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_83",
+            "name": "Surfy SurfyBear",
+            "product": {
+              "name": "SurfyBear",
+              "mfr": "Surfy"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 12,
+              "to": false,
+              "from": true,
+              "portId": "B5"
+            },
+            "to": {
+              "port": 12,
+              "to": true,
+              "from": false,
+              "portId": "B5"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 13,
+              "to": false,
+              "from": true,
+              "portId": "B6"
+            },
+            "to": {
+              "port": 13,
+              "to": true,
+              "from": false,
+              "portId": "B6"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_85": {
+      "id": "MCJZ6CG6_85",
+      "name": "Electrix Mo-FX",
+      "product": {
+        "name": "MO-FX",
+        "mfr": "Electrix"
+      },
+      "nodes": {
+        "MCJZ6CG6_86": {
+          "id": "MCJZ6CG6_86",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_85",
+            "name": "Electrix Mo-FX",
+            "product": {
+              "name": "MO-FX",
+              "mfr": "Electrix"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 14,
+              "to": false,
+              "from": true,
+              "portId": "B7"
+            },
+            "to": {
+              "port": 14,
+              "to": true,
+              "from": false,
+              "portId": "B7"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 15,
+              "to": false,
+              "from": true,
+              "portId": "B8"
+            },
+            "to": {
+              "port": 15,
+              "to": true,
+              "from": false,
+              "portId": "B8"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_88": {
+      "id": "MCJZ6CG6_88",
+      "name": "Sunset Sound Tutti",
+      "product": {
+        "name": "Tutti",
+        "mfr": "Sunset Sound"
+      },
+      "nodes": {
+        "MCJZ6CG6_89": {
+          "id": "MCJZ6CG6_89",
+          "name": "Mic Pre",
+          "device": {
+            "id": "MCJZ6CG6_88",
+            "name": "Sunset Sound Tutti",
+            "product": {
+              "name": "Tutti",
+              "mfr": "Sunset Sound"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_87",
+              "name": "micpre",
+              "meta": {
+                "created": "250630213930",
+                "modified": "250630213930",
+                "accessed": "250630213930"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 19,
+              "to": false,
+              "from": true,
+              "portId": "C4"
+            },
+            "to": {
+              "port": 19,
+              "to": true,
+              "from": false,
+              "portId": "C4"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_8B": {
+          "id": "MCJZ6CG6_8B",
+          "name": "Hi-Z Input",
+          "device": {
+            "id": "MCJZ6CG6_88",
+            "name": "Sunset Sound Tutti",
+            "product": {
+              "name": "Tutti",
+              "mfr": "Sunset Sound"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_8A",
+              "name": "hi-z",
+              "meta": {
+                "created": "250630213930",
+                "modified": "250630213930",
+                "accessed": "250630213930"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 19,
+              "to": false,
+              "from": true,
+              "portId": "C4"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_8C": {
+      "id": "MCJZ6CG6_8C",
+      "name": "Lexicon PCM70",
+      "product": {
+        "name": "PCM70",
+        "mfr": "Lexicon"
+      },
+      "nodes": {
+        "MCJZ6CG6_8D": {
+          "id": "MCJZ6CG6_8D",
+          "name": "M2S processor",
+          "device": {
+            "id": "MCJZ6CG6_8C",
+            "name": "Lexicon PCM70",
+            "product": {
+              "name": "PCM70",
+              "mfr": "Lexicon"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "m2s": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_3",
+              "name": "Reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 16,
+              "to": false,
+              "from": true,
+              "portId": "C1"
+            },
+            "to": {
+              "port": 16,
+              "to": true,
+              "from": false,
+              "portId": "C1"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 17,
+              "to": false,
+              "from": true,
+              "portId": "C2"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8E": {
+      "id": "MCJZ6CG6_8E",
+      "name": "MASTER ROOM",
+      "product": {
+        "mfr": "MASTER ROOM"
+      },
+      "nodes": {
+        "MCJZ6CG6_8F": {
+          "id": "MCJZ6CG6_8F",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8E",
+            "name": "MASTER ROOM",
+            "product": {
+              "mfr": "MASTER ROOM"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 20,
+              "to": false,
+              "from": true,
+              "portId": "C5"
+            },
+            "to": {
+              "port": 20,
+              "to": true,
+              "from": false,
+              "portId": "C5"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 21,
+              "to": false,
+              "from": true,
+              "portId": "C6"
+            },
+            "to": {
+              "port": 21,
+              "to": true,
+              "from": false,
+              "portId": "C6"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8G": {
+      "id": "MCJZ6CG6_8G",
+      "name": "MASTER CLONE",
+      "product": {
+        "mfr": "MASTER CLONE"
+      },
+      "nodes": {
+        "MCJZ6CG6_8H": {
+          "id": "MCJZ6CG6_8H",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8G",
+            "name": "MASTER CLONE",
+            "product": {
+              "mfr": "MASTER CLONE"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 22,
+              "to": false,
+              "from": true,
+              "portId": "C7"
+            },
+            "to": {
+              "port": 22,
+              "to": true,
+              "from": false,
+              "portId": "C7"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 23,
+              "to": false,
+              "from": true,
+              "portId": "C8"
+            },
+            "to": {
+              "port": 23,
+              "to": true,
+              "from": false,
+              "portId": "C8"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8I": {
+      "id": "MCJZ6CG6_8I",
+      "name": "UA Echo",
+      "product": {
+        "name": "Echo",
+        "mfr": "UA"
+      },
+      "nodes": {
+        "MCJZ6CG6_8J": {
+          "id": "MCJZ6CG6_8J",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8I",
+            "name": "UA Echo",
+            "product": {
+              "name": "Echo",
+              "mfr": "UA"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 24,
+              "to": false,
+              "from": true,
+              "portId": "D1"
+            },
+            "to": {
+              "port": 24,
+              "to": true,
+              "from": false,
+              "portId": "D1"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 25,
+              "to": false,
+              "from": true,
+              "portId": "D2"
+            },
+            "to": {
+              "port": 25,
+              "to": true,
+              "from": false,
+              "portId": "D2"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8K": {
+      "id": "MCJZ6CG6_8K",
+      "name": "UA Reverb",
+      "product": {
+        "name": "Reverb",
+        "mfr": "UA"
+      },
+      "nodes": {
+        "MCJZ6CG6_8L": {
+          "id": "MCJZ6CG6_8L",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8K",
+            "name": "UA Reverb",
+            "product": {
+              "name": "Reverb",
+              "mfr": "UA"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 26,
+              "to": false,
+              "from": true,
+              "portId": "D3"
+            },
+            "to": {
+              "port": 26,
+              "to": true,
+              "from": false,
+              "portId": "D3"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 27,
+              "to": false,
+              "from": true,
+              "portId": "D4"
+            },
+            "to": {
+              "port": 27,
+              "to": true,
+              "from": false,
+              "portId": "D4"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8M": {
+      "id": "MCJZ6CG6_8M",
+      "name": "UA Del-Verb",
+      "product": {
+        "name": "Del-Verb",
+        "mfr": "UA"
+      },
+      "nodes": {
+        "MCJZ6CG6_8N": {
+          "id": "MCJZ6CG6_8N",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8M",
+            "name": "UA Del-Verb",
+            "product": {
+              "name": "Del-Verb",
+              "mfr": "UA"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 28,
+              "to": false,
+              "from": true,
+              "portId": "D5"
+            },
+            "to": {
+              "port": 28,
+              "to": true,
+              "from": false,
+              "portId": "D5"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 29,
+              "to": false,
+              "from": true,
+              "portId": "D6"
+            },
+            "to": {
+              "port": 29,
+              "to": true,
+              "from": false,
+              "portId": "D6"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8O": {
+      "id": "MCJZ6CG6_8O",
+      "name": "UA Astra",
+      "product": {
+        "name": "Astra",
+        "mfr": "UA"
+      },
+      "nodes": {
+        "MCJZ6CG6_8P": {
+          "id": "MCJZ6CG6_8P",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8O",
+            "name": "UA Astra",
+            "product": {
+              "name": "Astra",
+              "mfr": "UA"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_0",
+              "name": "reverb",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 30,
+              "to": false,
+              "from": true,
+              "portId": "D7"
+            },
+            "to": {
+              "port": 30,
+              "to": true,
+              "from": false,
+              "portId": "D7"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 31,
+              "to": false,
+              "from": true,
+              "portId": "D8"
+            },
+            "to": {
+              "port": 31,
+              "to": true,
+              "from": false,
+              "portId": "D8"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8Q": {
+      "id": "MCJZ6CG6_8Q",
+      "name": "Binson Echorec",
+      "product": {
+        "name": "Echorec",
+        "mfr": "Binson"
+      },
+      "nodes": {
+        "MCJZ6CG6_8R": {
+          "id": "MCJZ6CG6_8R",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_8Q",
+            "name": "Binson Echorec",
+            "product": {
+              "name": "Echorec",
+              "mfr": "Binson"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 32,
+              "to": false,
+              "from": true,
+              "portId": "E1"
+            },
+            "to": {
+              "port": 32,
+              "to": true,
+              "from": false,
+              "portId": "E1"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_8S": {
+      "id": "MCJZ6CG6_8S",
+      "name": "Moog Echo",
+      "product": {
+        "name": "Echo",
+        "mfr": "Moog"
+      },
+      "nodes": {
+        "MCJZ6CG6_8T": {
+          "id": "MCJZ6CG6_8T",
+          "name": "Mono Processor",
+          "device": {
+            "id": "MCJZ6CG6_8S",
+            "name": "Moog Echo",
+            "product": {
+              "name": "Echo",
+              "mfr": "Moog"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 33,
+              "to": false,
+              "from": true,
+              "portId": "E2"
+            },
+            "to": {
+              "port": 33,
+              "to": true,
+              "from": false,
+              "portId": "E2"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_8U": {
+      "id": "MCJZ6CG6_8U",
+      "name": "Eventide H90",
+      "product": {
+        "name": "H90",
+        "mfr": "Eventide"
+      },
+      "nodes": {
+        "MCJZ6CG6_8V": {
+          "id": "MCJZ6CG6_8V",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8U",
+            "name": "Eventide H90",
+            "product": {
+              "name": "H90",
+              "mfr": "Eventide"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 34,
+              "to": false,
+              "from": true,
+              "portId": "E3"
+            },
+            "to": {
+              "port": 34,
+              "to": true,
+              "from": false,
+              "portId": "E3"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 35,
+              "to": false,
+              "from": true,
+              "portId": "E4"
+            },
+            "to": {
+              "port": 35,
+              "to": true,
+              "from": false,
+              "portId": "E4"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8W": {
+      "id": "MCJZ6CG6_8W",
+      "name": "OTO Machines BAM",
+      "product": {
+        "name": "BAM",
+        "mfr": "OTO Machines"
+      },
+      "nodes": {
+        "MCJZ6CG6_8X": {
+          "id": "MCJZ6CG6_8X",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8W",
+            "name": "OTO Machines BAM",
+            "product": {
+              "name": "BAM",
+              "mfr": "OTO Machines"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 36,
+              "to": false,
+              "from": true,
+              "portId": "E5"
+            },
+            "to": {
+              "port": 36,
+              "to": true,
+              "from": false,
+              "portId": "E5"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 37,
+              "to": false,
+              "from": true,
+              "portId": "E6"
+            },
+            "to": {
+              "port": 37,
+              "to": true,
+              "from": false,
+              "portId": "E6"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_8Y": {
+      "id": "MCJZ6CG6_8Y",
+      "name": "OTO Machines BIM",
+      "product": {
+        "name": "BIM",
+        "mfr": "OTO Machines"
+      },
+      "nodes": {
+        "MCJZ6CG6_8Z": {
+          "id": "MCJZ6CG6_8Z",
+          "name": "Stereo Processor",
+          "device": {
+            "id": "MCJZ6CG6_8Y",
+            "name": "OTO Machines BIM",
+            "product": {
+              "name": "BIM",
+              "mfr": "OTO Machines"
+            }
+          },
+          "role": {
+            "proc": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_2",
+              "name": "delay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 38,
+              "to": false,
+              "from": true,
+              "portId": "E7"
+            },
+            "to": {
+              "port": 38,
+              "to": true,
+              "from": false,
+              "portId": "E7"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 39,
+              "to": false,
+              "from": true,
+              "portId": "E8"
+            },
+            "to": {
+              "port": 39,
+              "to": true,
+              "from": false,
+              "portId": "E8"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_90": {
+      "id": "MCJZ6CG6_90",
+      "name": "CONSOLE BUS",
+      "product": {
+        "name": "CONSOLE BUS"
+      },
+      "nodes": {
+        "MCJZ6CG6_91": {
+          "id": "MCJZ6CG6_91",
+          "name": "3",
+          "device": {
+            "id": "MCJZ6CG6_90",
+            "name": "CONSOLE BUS",
+            "product": {
+              "name": "CONSOLE BUS"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_4",
+              "name": "send",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 40,
+              "to": false,
+              "from": true,
+              "portId": "F1"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_E6": {
+          "id": "MCJZ6CG6_E6",
+          "name": "19",
+          "L": {
+            "from": {
+              "port": 41,
+              "to": false,
+              "from": true,
+              "portId": "F2"
+            }
+          },
+          "R": {},
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [],
+          "device": {
+            "id": "MCJZ6CG6_90",
+            "name": "CONSOLE BUS",
+            "product": {
+              "name": "CONSOLE BUS"
+            }
+          }
+        },
+        "MCJZ6CG6_E7": {
+          "id": "MCJZ6CG6_E7",
+          "name": "20",
+          "device": {
+            "id": "MCJZ6CG6_90",
+            "name": "CONSOLE BUS",
+            "product": {
+              "name": "CONSOLE BUS"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "L": {
+            "from": {
+              "port": 42,
+              "to": false,
+              "from": true,
+              "portId": "F3"
+            }
+          },
+          "R": {},
+          "tags": []
+        },
+        "MCJZ6CG6_E8": {
+          "id": "MCJZ6CG6_E8",
+          "name": "22",
+          "device": {
+            "id": "MCJZ6CG6_90",
+            "name": "CONSOLE BUS",
+            "product": {
+              "name": "CONSOLE BUS"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "L": {
+            "from": {
+              "port": 43,
+              "to": false,
+              "from": true,
+              "portId": "F4"
+            }
+          },
+          "R": {},
+          "tags": []
+        }
+      }
+    },
+    "MCJZ6CG6_98": {
+      "id": "MCJZ6CG6_98",
+      "name": "STEREO C",
+      "product": {
+        "name": "STEREO C"
+      },
+      "nodes": {
+        "MCJZ6CG6_99": {
+          "id": "MCJZ6CG6_99",
+          "name": "Stereo Source",
+          "device": {
+            "id": "MCJZ6CG6_98",
+            "name": "STEREO C",
+            "product": {
+              "name": "STEREO C"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_4",
+              "name": "send",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 44,
+              "to": false,
+              "from": true,
+              "portId": "F5"
+            }
+          },
+          "R": {
+            "from": {
+              "port": 45,
+              "to": false,
+              "from": true,
+              "portId": "F6"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_9A": {
+      "id": "MCJZ6CG6_9A",
+      "name": "AUX 3",
+      "product": {
+        "name": "AUX 3"
+      },
+      "nodes": {
+        "MCJZ6CG6_9B": {
+          "id": "MCJZ6CG6_9B",
+          "name": "Mono Source",
+          "device": {
+            "id": "MCJZ6CG6_9A",
+            "name": "AUX 3",
+            "product": {
+              "name": "AUX 3"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_4",
+              "name": "send",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 46,
+              "to": false,
+              "from": true,
+              "portId": "F7"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_9C": {
+      "id": "MCJZ6CG6_9C",
+      "name": "AUX 4",
+      "product": {
+        "name": "AUX 4"
+      },
+      "nodes": {
+        "MCJZ6CG6_9D": {
+          "id": "MCJZ6CG6_9D",
+          "name": "Mono Source",
+          "device": {
+            "id": "MCJZ6CG6_9C",
+            "name": "AUX 4",
+            "product": {
+              "name": "AUX 4"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_4",
+              "name": "send",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 47,
+              "to": false,
+              "from": true,
+              "portId": "F8"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_9E": {
+      "id": "MCJZ6CG6_9E",
+      "name": "Wolff Audio ProPatch",
+      "product": {
+        "name": "ProPatch",
+        "mfr": "Wolff Audio"
+      },
+      "nodes": {
+        "MCJZ6CG6_9F": {
+          "id": "MCJZ6CG6_9F",
+          "name": "Front Panel 1",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 48,
+              "to": false,
+              "from": true,
+              "portId": "P1"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9G": {
+          "id": "MCJZ6CG6_9G",
+          "name": "Front Panel 2",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 49,
+              "to": false,
+              "from": true,
+              "portId": "P2"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9H": {
+          "id": "MCJZ6CG6_9H",
+          "name": "Front Panel 3",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 50,
+              "to": false,
+              "from": true,
+              "portId": "P3"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9I": {
+          "id": "MCJZ6CG6_9I",
+          "name": "Front Panel 4",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 51,
+              "to": false,
+              "from": true,
+              "portId": "P4"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9J": {
+          "id": "MCJZ6CG6_9J",
+          "name": "Front Panel 5",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 52,
+              "to": false,
+              "from": true,
+              "portId": "P5"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9K": {
+          "id": "MCJZ6CG6_9K",
+          "name": "Front Panel 6",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 53,
+              "to": false,
+              "from": true,
+              "portId": "P6"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9L": {
+          "id": "MCJZ6CG6_9L",
+          "name": "Front Panel 7",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 54,
+              "to": false,
+              "from": true,
+              "portId": "P7"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9M": {
+          "id": "MCJZ6CG6_9M",
+          "name": "Front Panel 8",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 55,
+              "to": false,
+              "from": true,
+              "portId": "P8"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9N": {
+          "id": "MCJZ6CG6_9N",
+          "name": "Front Panel 9",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 56,
+              "to": false,
+              "from": true,
+              "portId": "P9"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9O": {
+          "id": "MCJZ6CG6_9O",
+          "name": "Front Panel 10",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 57,
+              "to": false,
+              "from": true,
+              "portId": "P10"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9P": {
+          "id": "MCJZ6CG6_9P",
+          "name": "Front Panel 11",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 58,
+              "to": false,
+              "from": true,
+              "portId": "P11"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9Q": {
+          "id": "MCJZ6CG6_9Q",
+          "name": "Front Panel 12",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 59,
+              "to": false,
+              "from": true,
+              "portId": "P12"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9R": {
+          "id": "MCJZ6CG6_9R",
+          "name": "Front Panel 13",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 60,
+              "to": false,
+              "from": true,
+              "portId": "P13"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9S": {
+          "id": "MCJZ6CG6_9S",
+          "name": "Front Panel 14",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 61,
+              "to": false,
+              "from": true,
+              "portId": "P14"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9T": {
+          "id": "MCJZ6CG6_9T",
+          "name": "Front Panel 15",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 62,
+              "to": false,
+              "from": true,
+              "portId": "P15"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9U": {
+          "id": "MCJZ6CG6_9U",
+          "name": "Front Panel 16",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "from": {
+              "port": 63,
+              "to": false,
+              "from": true,
+              "portId": "P16"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9V": {
+          "id": "MCJZ6CG6_9V",
+          "name": "Front Panel 1",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 48,
+              "to": true,
+              "from": false,
+              "portId": "P1"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9W": {
+          "id": "MCJZ6CG6_9W",
+          "name": "Front Panel 2",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 49,
+              "to": true,
+              "from": false,
+              "portId": "P2"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9X": {
+          "id": "MCJZ6CG6_9X",
+          "name": "Front Panel 3",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 50,
+              "to": true,
+              "from": false,
+              "portId": "P3"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9Y": {
+          "id": "MCJZ6CG6_9Y",
+          "name": "Front Panel 4",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 51,
+              "to": true,
+              "from": false,
+              "portId": "P4"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_9Z": {
+          "id": "MCJZ6CG6_9Z",
+          "name": "Front Panel 5",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 52,
+              "to": true,
+              "from": false,
+              "portId": "P5"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A0": {
+          "id": "MCJZ6CG6_A0",
+          "name": "Front Panel 6",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 53,
+              "to": true,
+              "from": false,
+              "portId": "P6"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A1": {
+          "id": "MCJZ6CG6_A1",
+          "name": "Front Panel 7",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 54,
+              "to": true,
+              "from": false,
+              "portId": "P7"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A2": {
+          "id": "MCJZ6CG6_A2",
+          "name": "Front Panel 8",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 55,
+              "to": true,
+              "from": false,
+              "portId": "P8"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A3": {
+          "id": "MCJZ6CG6_A3",
+          "name": "Front Panel 9",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 56,
+              "to": true,
+              "from": false,
+              "portId": "P9"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A4": {
+          "id": "MCJZ6CG6_A4",
+          "name": "Front Panel 10",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 57,
+              "to": true,
+              "from": false,
+              "portId": "P10"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A5": {
+          "id": "MCJZ6CG6_A5",
+          "name": "Front Panel 11",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 58,
+              "to": true,
+              "from": false,
+              "portId": "P11"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A6": {
+          "id": "MCJZ6CG6_A6",
+          "name": "Front Panel 12",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 59,
+              "to": true,
+              "from": false,
+              "portId": "P12"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A7": {
+          "id": "MCJZ6CG6_A7",
+          "name": "Front Panel 13",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 60,
+              "to": true,
+              "from": false,
+              "portId": "P13"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A8": {
+          "id": "MCJZ6CG6_A8",
+          "name": "Front Panel 14",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 61,
+              "to": true,
+              "from": false,
+              "portId": "P14"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_A9": {
+          "id": "MCJZ6CG6_A9",
+          "name": "Front Panel 15",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 62,
+              "to": true,
+              "from": false,
+              "portId": "P15"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_AA": {
+          "id": "MCJZ6CG6_AA",
+          "name": "Front Panel 16",
+          "device": {
+            "id": "MCJZ6CG6_9E",
+            "name": "Wolff Audio ProPatch",
+            "product": {
+              "name": "ProPatch",
+              "mfr": "Wolff Audio"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_5",
+              "name": "patchbay",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 63,
+              "to": true,
+              "from": false,
+              "portId": "P16"
+            }
+          },
+          "R": {}
+        }
+      }
+    },
+    "MCJZ6CG6_AB": {
+      "id": "MCJZ6CG6_AB",
+      "name": "MONITOR RETURN",
+      "product": {
+        "name": "MONITOR RETURN"
+      },
+      "nodes": {
+        "MCJZ6CG6_AC": {
+          "id": "MCJZ6CG6_AC",
+          "name": "41-42",
+          "device": {
+            "id": "MCJZ6CG6_AB",
+            "name": "MONITOR RETURN",
+            "product": {
+              "name": "MONITOR RETURN"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_6",
+              "name": "return",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 40,
+              "to": true,
+              "from": false,
+              "portId": "F1"
+            }
+          },
+          "R": {
+            "to": {
+              "port": 41,
+              "to": true,
+              "from": false,
+              "portId": "F2"
+            }
+          }
+        },
+        "MCJZ6CG6_AD": {
+          "id": "MCJZ6CG6_AD",
+          "name": "43-44",
+          "device": {
+            "id": "MCJZ6CG6_AB",
+            "name": "MONITOR RETURN",
+            "product": {
+              "name": "MONITOR RETURN"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_6",
+              "name": "return",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 42,
+              "to": true,
+              "from": false,
+              "portId": "F3"
+            }
+          },
+          "R": {
+            "to": {
+              "port": 43,
+              "to": true,
+              "from": false,
+              "portId": "F4"
+            }
+          }
+        },
+        "MCJZ6CG6_AE": {
+          "id": "MCJZ6CG6_AE",
+          "name": "45-46",
+          "device": {
+            "id": "MCJZ6CG6_AB",
+            "name": "MONITOR RETURN",
+            "product": {
+              "name": "MONITOR RETURN"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_6",
+              "name": "return",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 44,
+              "to": true,
+              "from": false,
+              "portId": "F5"
+            }
+          },
+          "R": {
+            "to": {
+              "port": 45,
+              "to": true,
+              "from": false,
+              "portId": "F6"
+            }
+          }
+        },
+        "MCJZ6CG6_AF": {
+          "id": "MCJZ6CG6_AF",
+          "name": "47-48",
+          "device": {
+            "id": "MCJZ6CG6_AB",
+            "name": "MONITOR RETURN",
+            "product": {
+              "name": "MONITOR RETURN"
+            }
+          },
+          "role": {
+            "dest": true
+          },
+          "phonia": {
+            "stereo": true
+          },
+          "tags": [
+            {
+              "id": "MCJZ6CG6_6",
+              "name": "return",
+              "meta": {
+                "created": "250630203538",
+                "modified": "250630203538",
+                "accessed": "250630203538"
+              }
+            }
+          ],
+          "L": {
+            "to": {
+              "port": 46,
+              "to": true,
+              "from": false,
+              "portId": "F7"
+            }
+          },
+          "R": {
+            "to": {
+              "port": 47,
+              "to": true,
+              "from": false,
+              "portId": "F8"
+            }
+          }
+        }
+      }
+    },
+    "MCJZ6CG6_AG": {
+      "id": "MCJZ6CG6_AG",
+      "name": "Front Panel XLR",
+      "product": {},
+      "nodes": {
+        "MCJZ6CG6_AH": {
+          "id": "MCJZ6CG6_AH",
+          "name": "P 13",
+          "device": {
+            "id": "MCJZ6CG6_AG",
+            "name": "Front Panel XLR",
+            "product": {}
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [],
+          "L": {
+            "from": {
+              "port": 60,
+              "to": false,
+              "from": true,
+              "portId": "P13"
+            }
+          },
+          "R": {}
+        },
+        "MCJZ6CG6_CT": {
+          "id": "MCJZ6CG6_CT",
+          "name": "P 14",
+          "device": {
+            "id": "MCJZ6CG6_AG",
+            "name": "Front Panel XLR",
+            "product": {}
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "L": {
+            "from": {
+              "port": 61,
+              "to": false,
+              "from": true,
+              "portId": "P14"
+            }
+          },
+          "R": {},
+          "tags": []
+        },
+        "MCJZ6CG6_CU": {
+          "id": "MCJZ6CG6_CU",
+          "name": "P 15",
+          "device": {
+            "id": "MCJZ6CG6_AG",
+            "name": "Front Panel XLR",
+            "product": {}
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "L": {
+            "from": {
+              "port": 62,
+              "to": false,
+              "from": true,
+              "portId": "P15"
+            }
+          },
+          "R": {},
+          "tags": []
+        },
+        "MCJZ6CG6_CV": {
+          "id": "MCJZ6CG6_CV",
+          "name": "P 16",
+          "device": {
+            "id": "MCJZ6CG6_AG",
+            "name": "Front Panel XLR",
+            "product": {}
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "L": {
+            "from": {
+              "port": 63,
+              "to": false,
+              "from": true,
+              "portId": "P16"
+            }
+          },
+          "R": {},
+          "tags": []
+        }
+      }
+    },
+    "MCJZ6CG6_AI": {
+      "id": "MCJZ6CG6_AI",
+      "name": "Mic In",
+      "product": {},
+      "nodes": {
+        "MCJZ6CG6_AJ": {
+          "id": "MCJZ6CG6_AJ",
+          "name": "Front Panel XLR 13",
+          "device": {
+            "id": "MCJZ6CG6_AI",
+            "name": "Mic In",
+            "product": {}
+          },
+          "role": {
+            "source": true
+          },
+          "phonia": {
+            "mono": true
+          },
+          "tags": [],
+          "L": {
+            "from": {
+              "port": 61,
+              "to": false,
+              "from": true,
+              "portId": "P14"
+            }
+          },
+          "R": {}
+        }
+      }
+    }
+  },
+  "chains": {
+    "0": {
+      "id": "MCJZ6CG6_AK",
+      "state": {
+        "name": "Vocal",
+        "color": "#EC853B",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_AL",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_DQ",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_91",
+                    "name": "3",
+                    "device": {
+                      "id": "MCJZ6CG6_90",
+                      "name": "CONSOLE BUS",
+                      "product": {
+                        "name": "CONSOLE BUS"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 40,
+                        "to": false,
+                        "from": true,
+                        "portId": "F1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 40,
+                        "to": false,
+                        "from": true,
+                        "portId": "F1"
+                      }
+                    ],
+                    "tags": [
+                      "send"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_B6",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_89",
+                    "name": "Mic Pre",
+                    "device": {
+                      "id": "MCJZ6CG6_88",
+                      "name": "Sunset Sound Tutti",
+                      "product": {
+                        "name": "Tutti",
+                        "mfr": "Sunset Sound"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 19,
+                        "to": true,
+                        "from": false,
+                        "portId": "C4"
+                      },
+                      "from": {
+                        "port": 19,
+                        "to": false,
+                        "from": true,
+                        "portId": "C4"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 19,
+                        "to": false,
+                        "from": true,
+                        "portId": "C4"
+                      },
+                      {
+                        "port": 19,
+                        "to": true,
+                        "from": false,
+                        "portId": "C4"
+                      }
+                    ],
+                    "tags": [
+                      "micpre"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_BG",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7E",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7D",
+                      "name": "Fairchild 666",
+                      "product": {
+                        "name": "666",
+                        "mfr": "Fairchild"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 8,
+                        "to": true,
+                        "from": false,
+                        "portId": "B1"
+                      },
+                      "from": {
+                        "port": 8,
+                        "to": false,
+                        "from": true,
+                        "portId": "B1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 8,
+                        "to": false,
+                        "from": true,
+                        "portId": "B1"
+                      },
+                      {
+                        "port": 8,
+                        "to": true,
+                        "from": false,
+                        "portId": "B1"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_BT",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8R",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8Q",
+                      "name": "Binson Echorec",
+                      "product": {
+                        "name": "Echorec",
+                        "mfr": "Binson"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 32,
+                        "to": true,
+                        "from": false,
+                        "portId": "E1"
+                      },
+                      "from": {
+                        "port": 32,
+                        "to": false,
+                        "from": true,
+                        "portId": "E1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 32,
+                        "to": false,
+                        "from": true,
+                        "portId": "E1"
+                      },
+                      {
+                        "port": 32,
+                        "to": true,
+                        "from": false,
+                        "portId": "E1"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_AN",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_7R",
+                    "name": "1",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 2,
+                        "to": true,
+                        "from": false,
+                        "portId": "A3"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 2,
+                        "to": true,
+                        "from": false,
+                        "portId": "A3"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "1": {
+      "id": "MCJZ6CG6_GS",
+      "state": {
+        "name": "Insert",
+        "color": "#d41c75",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_GT",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_I8",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7N",
+                    "name": "3",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 4,
+                        "to": false,
+                        "from": true,
+                        "portId": "A5"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 4,
+                        "to": false,
+                        "from": true,
+                        "portId": "A5"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  },
+                  "split": true,
+                  "R": {
+                    "id": "MCJZ6CG6_7O",
+                    "name": "4",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 5,
+                        "to": false,
+                        "from": true,
+                        "portId": "A6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 5,
+                        "to": false,
+                        "from": true,
+                        "portId": "A6"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_L5",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8H",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8G",
+                      "name": "MASTER CLONE",
+                      "product": {
+                        "mfr": "MASTER CLONE"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 22,
+                        "to": true,
+                        "from": false,
+                        "portId": "C7"
+                      },
+                      "from": {
+                        "port": 22,
+                        "to": false,
+                        "from": true,
+                        "portId": "C7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 23,
+                        "to": true,
+                        "from": false,
+                        "portId": "C8"
+                      },
+                      "from": {
+                        "port": 23,
+                        "to": false,
+                        "from": true,
+                        "portId": "C8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 22,
+                        "to": false,
+                        "from": true,
+                        "portId": "C7"
+                      },
+                      {
+                        "port": 22,
+                        "to": true,
+                        "from": false,
+                        "portId": "C7"
+                      },
+                      {
+                        "port": 23,
+                        "to": false,
+                        "from": true,
+                        "portId": "C8"
+                      },
+                      {
+                        "port": 23,
+                        "to": true,
+                        "from": false,
+                        "portId": "C8"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8H",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8G",
+                      "name": "MASTER CLONE",
+                      "product": {
+                        "mfr": "MASTER CLONE"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 22,
+                        "to": true,
+                        "from": false,
+                        "portId": "C7"
+                      },
+                      "from": {
+                        "port": 22,
+                        "to": false,
+                        "from": true,
+                        "portId": "C7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 23,
+                        "to": true,
+                        "from": false,
+                        "portId": "C8"
+                      },
+                      "from": {
+                        "port": 23,
+                        "to": false,
+                        "from": true,
+                        "portId": "C8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 22,
+                        "to": false,
+                        "from": true,
+                        "portId": "C7"
+                      },
+                      {
+                        "port": 22,
+                        "to": true,
+                        "from": false,
+                        "portId": "C7"
+                      },
+                      {
+                        "port": 23,
+                        "to": false,
+                        "from": true,
+                        "portId": "C8"
+                      },
+                      {
+                        "port": 23,
+                        "to": true,
+                        "from": false,
+                        "portId": "C8"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_LU",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8F",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8E",
+                      "name": "MASTER ROOM",
+                      "product": {
+                        "mfr": "MASTER ROOM"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 20,
+                        "to": true,
+                        "from": false,
+                        "portId": "C5"
+                      },
+                      "from": {
+                        "port": 20,
+                        "to": false,
+                        "from": true,
+                        "portId": "C5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 21,
+                        "to": true,
+                        "from": false,
+                        "portId": "C6"
+                      },
+                      "from": {
+                        "port": 21,
+                        "to": false,
+                        "from": true,
+                        "portId": "C6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 20,
+                        "to": false,
+                        "from": true,
+                        "portId": "C5"
+                      },
+                      {
+                        "port": 20,
+                        "to": true,
+                        "from": false,
+                        "portId": "C5"
+                      },
+                      {
+                        "port": 21,
+                        "to": false,
+                        "from": true,
+                        "portId": "C6"
+                      },
+                      {
+                        "port": 21,
+                        "to": true,
+                        "from": false,
+                        "portId": "C6"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8F",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8E",
+                      "name": "MASTER ROOM",
+                      "product": {
+                        "mfr": "MASTER ROOM"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 20,
+                        "to": true,
+                        "from": false,
+                        "portId": "C5"
+                      },
+                      "from": {
+                        "port": 20,
+                        "to": false,
+                        "from": true,
+                        "portId": "C5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 21,
+                        "to": true,
+                        "from": false,
+                        "portId": "C6"
+                      },
+                      "from": {
+                        "port": 21,
+                        "to": false,
+                        "from": true,
+                        "portId": "C6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 20,
+                        "to": false,
+                        "from": true,
+                        "portId": "C5"
+                      },
+                      {
+                        "port": 20,
+                        "to": true,
+                        "from": false,
+                        "portId": "C5"
+                      },
+                      {
+                        "port": 21,
+                        "to": false,
+                        "from": true,
+                        "portId": "C6"
+                      },
+                      {
+                        "port": 21,
+                        "to": true,
+                        "from": false,
+                        "portId": "C6"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_MM",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8X",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8W",
+                      "name": "OTO Machines BAM",
+                      "product": {
+                        "name": "BAM",
+                        "mfr": "OTO Machines"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 36,
+                        "to": true,
+                        "from": false,
+                        "portId": "E5"
+                      },
+                      "from": {
+                        "port": 36,
+                        "to": false,
+                        "from": true,
+                        "portId": "E5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 37,
+                        "to": true,
+                        "from": false,
+                        "portId": "E6"
+                      },
+                      "from": {
+                        "port": 37,
+                        "to": false,
+                        "from": true,
+                        "portId": "E6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 36,
+                        "to": false,
+                        "from": true,
+                        "portId": "E5"
+                      },
+                      {
+                        "port": 36,
+                        "to": true,
+                        "from": false,
+                        "portId": "E5"
+                      },
+                      {
+                        "port": 37,
+                        "to": false,
+                        "from": true,
+                        "portId": "E6"
+                      },
+                      {
+                        "port": 37,
+                        "to": true,
+                        "from": false,
+                        "portId": "E6"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8X",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8W",
+                      "name": "OTO Machines BAM",
+                      "product": {
+                        "name": "BAM",
+                        "mfr": "OTO Machines"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 36,
+                        "to": true,
+                        "from": false,
+                        "portId": "E5"
+                      },
+                      "from": {
+                        "port": 36,
+                        "to": false,
+                        "from": true,
+                        "portId": "E5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 37,
+                        "to": true,
+                        "from": false,
+                        "portId": "E6"
+                      },
+                      "from": {
+                        "port": 37,
+                        "to": false,
+                        "from": true,
+                        "portId": "E6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 36,
+                        "to": false,
+                        "from": true,
+                        "portId": "E5"
+                      },
+                      {
+                        "port": 36,
+                        "to": true,
+                        "from": false,
+                        "portId": "E5"
+                      },
+                      {
+                        "port": 37,
+                        "to": false,
+                        "from": true,
+                        "portId": "E6"
+                      },
+                      {
+                        "port": 37,
+                        "to": true,
+                        "from": false,
+                        "portId": "E6"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": true
+                },
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8Z",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8Y",
+                      "name": "OTO Machines BIM",
+                      "product": {
+                        "name": "BIM",
+                        "mfr": "OTO Machines"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 38,
+                        "to": true,
+                        "from": false,
+                        "portId": "E7"
+                      },
+                      "from": {
+                        "port": 38,
+                        "to": false,
+                        "from": true,
+                        "portId": "E7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 39,
+                        "to": true,
+                        "from": false,
+                        "portId": "E8"
+                      },
+                      "from": {
+                        "port": 39,
+                        "to": false,
+                        "from": true,
+                        "portId": "E8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 38,
+                        "to": false,
+                        "from": true,
+                        "portId": "E7"
+                      },
+                      {
+                        "port": 38,
+                        "to": true,
+                        "from": false,
+                        "portId": "E7"
+                      },
+                      {
+                        "port": 39,
+                        "to": false,
+                        "from": true,
+                        "portId": "E8"
+                      },
+                      {
+                        "port": 39,
+                        "to": true,
+                        "from": false,
+                        "portId": "E8"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8Z",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8Y",
+                      "name": "OTO Machines BIM",
+                      "product": {
+                        "name": "BIM",
+                        "mfr": "OTO Machines"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 38,
+                        "to": true,
+                        "from": false,
+                        "portId": "E7"
+                      },
+                      "from": {
+                        "port": 38,
+                        "to": false,
+                        "from": true,
+                        "portId": "E7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 39,
+                        "to": true,
+                        "from": false,
+                        "portId": "E8"
+                      },
+                      "from": {
+                        "port": 39,
+                        "to": false,
+                        "from": true,
+                        "portId": "E8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 38,
+                        "to": false,
+                        "from": true,
+                        "portId": "E7"
+                      },
+                      {
+                        "port": 38,
+                        "to": true,
+                        "from": false,
+                        "portId": "E7"
+                      },
+                      {
+                        "port": 39,
+                        "to": false,
+                        "from": true,
+                        "portId": "E8"
+                      },
+                      {
+                        "port": 39,
+                        "to": true,
+                        "from": false,
+                        "portId": "E8"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": true,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_GV",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": true,
+                  "L": {
+                    "id": "MCJZ6CG6_7T",
+                    "name": "3",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 4,
+                        "to": true,
+                        "from": false,
+                        "portId": "A5"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 4,
+                        "to": true,
+                        "from": false,
+                        "portId": "A5"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_7U",
+                    "name": "4",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 5,
+                        "to": true,
+                        "from": false,
+                        "portId": "A6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 5,
+                        "to": true,
+                        "from": false,
+                        "portId": "A6"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "2": {
+      "id": "MCJZ6CG6_S2",
+      "state": {
+        "name": "Effects Loop",
+        "color": "#EC853B",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_S3",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_14D",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_99",
+                    "name": "Stereo Source",
+                    "device": {
+                      "id": "MCJZ6CG6_98",
+                      "name": "STEREO C",
+                      "product": {
+                        "name": "STEREO C"
+                      }
+                    },
+                    "source": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 44,
+                        "to": false,
+                        "from": true,
+                        "portId": "F5"
+                      }
+                    },
+                    "R": {
+                      "from": {
+                        "port": 45,
+                        "to": false,
+                        "from": true,
+                        "portId": "F6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 44,
+                        "to": false,
+                        "from": true,
+                        "portId": "F5"
+                      },
+                      {
+                        "port": 45,
+                        "to": false,
+                        "from": true,
+                        "portId": "F6"
+                      }
+                    ],
+                    "tags": [
+                      "send"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_99",
+                    "name": "Stereo Source",
+                    "device": {
+                      "id": "MCJZ6CG6_98",
+                      "name": "STEREO C",
+                      "product": {
+                        "name": "STEREO C"
+                      }
+                    },
+                    "source": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 44,
+                        "to": false,
+                        "from": true,
+                        "portId": "F5"
+                      }
+                    },
+                    "R": {
+                      "from": {
+                        "port": 45,
+                        "to": false,
+                        "from": true,
+                        "portId": "F6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 44,
+                        "to": false,
+                        "from": true,
+                        "portId": "F5"
+                      },
+                      {
+                        "port": 45,
+                        "to": false,
+                        "from": true,
+                        "portId": "F6"
+                      }
+                    ],
+                    "tags": [
+                      "send"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_U6",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_84",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_83",
+                      "name": "Surfy SurfyBear",
+                      "product": {
+                        "name": "SurfyBear",
+                        "mfr": "Surfy"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 12,
+                        "to": true,
+                        "from": false,
+                        "portId": "B5"
+                      },
+                      "from": {
+                        "port": 12,
+                        "to": false,
+                        "from": true,
+                        "portId": "B5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 13,
+                        "to": true,
+                        "from": false,
+                        "portId": "B6"
+                      },
+                      "from": {
+                        "port": 13,
+                        "to": false,
+                        "from": true,
+                        "portId": "B6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 12,
+                        "to": false,
+                        "from": true,
+                        "portId": "B5"
+                      },
+                      {
+                        "port": 12,
+                        "to": true,
+                        "from": false,
+                        "portId": "B5"
+                      },
+                      {
+                        "port": 13,
+                        "to": false,
+                        "from": true,
+                        "portId": "B6"
+                      },
+                      {
+                        "port": 13,
+                        "to": true,
+                        "from": false,
+                        "portId": "B6"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_84",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_83",
+                      "name": "Surfy SurfyBear",
+                      "product": {
+                        "name": "SurfyBear",
+                        "mfr": "Surfy"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 12,
+                        "to": true,
+                        "from": false,
+                        "portId": "B5"
+                      },
+                      "from": {
+                        "port": 12,
+                        "to": false,
+                        "from": true,
+                        "portId": "B5"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 13,
+                        "to": true,
+                        "from": false,
+                        "portId": "B6"
+                      },
+                      "from": {
+                        "port": 13,
+                        "to": false,
+                        "from": true,
+                        "portId": "B6"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 12,
+                        "to": false,
+                        "from": true,
+                        "portId": "B5"
+                      },
+                      {
+                        "port": 12,
+                        "to": true,
+                        "from": false,
+                        "portId": "B5"
+                      },
+                      {
+                        "port": 13,
+                        "to": false,
+                        "from": true,
+                        "portId": "B6"
+                      },
+                      {
+                        "port": 13,
+                        "to": true,
+                        "from": false,
+                        "portId": "B6"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_UW",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8P",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8O",
+                      "name": "UA Astra",
+                      "product": {
+                        "name": "Astra",
+                        "mfr": "UA"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 30,
+                        "to": true,
+                        "from": false,
+                        "portId": "D7"
+                      },
+                      "from": {
+                        "port": 30,
+                        "to": false,
+                        "from": true,
+                        "portId": "D7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 31,
+                        "to": true,
+                        "from": false,
+                        "portId": "D8"
+                      },
+                      "from": {
+                        "port": 31,
+                        "to": false,
+                        "from": true,
+                        "portId": "D8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 30,
+                        "to": false,
+                        "from": true,
+                        "portId": "D7"
+                      },
+                      {
+                        "port": 30,
+                        "to": true,
+                        "from": false,
+                        "portId": "D7"
+                      },
+                      {
+                        "port": 31,
+                        "to": false,
+                        "from": true,
+                        "portId": "D8"
+                      },
+                      {
+                        "port": 31,
+                        "to": true,
+                        "from": false,
+                        "portId": "D8"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8P",
+                    "name": "Stereo Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8O",
+                      "name": "UA Astra",
+                      "product": {
+                        "name": "Astra",
+                        "mfr": "UA"
+                      }
+                    },
+                    "proc": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 30,
+                        "to": true,
+                        "from": false,
+                        "portId": "D7"
+                      },
+                      "from": {
+                        "port": 30,
+                        "to": false,
+                        "from": true,
+                        "portId": "D7"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 31,
+                        "to": true,
+                        "from": false,
+                        "portId": "D8"
+                      },
+                      "from": {
+                        "port": 31,
+                        "to": false,
+                        "from": true,
+                        "portId": "D8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 30,
+                        "to": false,
+                        "from": true,
+                        "portId": "D7"
+                      },
+                      {
+                        "port": 30,
+                        "to": true,
+                        "from": false,
+                        "portId": "D7"
+                      },
+                      {
+                        "port": 31,
+                        "to": false,
+                        "from": true,
+                        "portId": "D8"
+                      },
+                      {
+                        "port": 31,
+                        "to": true,
+                        "from": false,
+                        "portId": "D8"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_S5",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_AC",
+                    "name": "41-42",
+                    "device": {
+                      "id": "MCJZ6CG6_AB",
+                      "name": "MONITOR RETURN",
+                      "product": {
+                        "name": "MONITOR RETURN"
+                      }
+                    },
+                    "dest": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 40,
+                        "to": true,
+                        "from": false,
+                        "portId": "F1"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 41,
+                        "to": true,
+                        "from": false,
+                        "portId": "F2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 40,
+                        "to": true,
+                        "from": false,
+                        "portId": "F1"
+                      },
+                      {
+                        "port": 41,
+                        "to": true,
+                        "from": false,
+                        "portId": "F2"
+                      }
+                    ],
+                    "tags": [
+                      "return"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_AC",
+                    "name": "41-42",
+                    "device": {
+                      "id": "MCJZ6CG6_AB",
+                      "name": "MONITOR RETURN",
+                      "product": {
+                        "name": "MONITOR RETURN"
+                      }
+                    },
+                    "dest": true,
+                    "stereo": true,
+                    "phonia": {
+                      "stereo": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 40,
+                        "to": true,
+                        "from": false,
+                        "portId": "F1"
+                      }
+                    },
+                    "R": {
+                      "to": {
+                        "port": 41,
+                        "to": true,
+                        "from": false,
+                        "portId": "F2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 40,
+                        "to": true,
+                        "from": false,
+                        "portId": "F1"
+                      },
+                      {
+                        "port": 41,
+                        "to": true,
+                        "from": false,
+                        "portId": "F2"
+                      }
+                    ],
+                    "tags": [
+                      "return"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "3": {
+      "id": "MCJZ6CG6_ZP",
+      "state": {
+        "name": "Reverb",
+        "color": "#485cc7",
+        "tags": []
+      },
+      "cond": {
+        "selected": true,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_ZQ",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_ZR",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_9B",
+                    "name": "Mono Source",
+                    "device": {
+                      "id": "MCJZ6CG6_9A",
+                      "name": "AUX 3",
+                      "product": {
+                        "name": "AUX 3"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 46,
+                        "to": false,
+                        "from": true,
+                        "portId": "F7"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 46,
+                        "to": false,
+                        "from": true,
+                        "portId": "F7"
+                      }
+                    ],
+                    "tags": [
+                      "send"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_1DH",
+              "state": {
+                "active": {
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_80",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7Z",
+                      "name": "DeltaLab Effectron",
+                      "product": {
+                        "name": "Effectron",
+                        "mfr": "DeltaLab"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 10,
+                        "to": true,
+                        "from": false,
+                        "portId": "B3"
+                      },
+                      "from": {
+                        "port": 10,
+                        "to": false,
+                        "from": true,
+                        "portId": "B3"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 10,
+                        "to": false,
+                        "from": true,
+                        "portId": "B3"
+                      },
+                      {
+                        "port": 10,
+                        "to": true,
+                        "from": false,
+                        "portId": "B3"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_11L",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8D",
+                    "name": "M2S processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8C",
+                      "name": "Lexicon PCM70",
+                      "product": {
+                        "name": "PCM70",
+                        "mfr": "Lexicon"
+                      }
+                    },
+                    "proc": true,
+                    "m2s": true,
+                    "phonia": {
+                      "m2s": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 16,
+                        "to": true,
+                        "from": false,
+                        "portId": "C1"
+                      },
+                      "from": {
+                        "port": 16,
+                        "to": false,
+                        "from": true,
+                        "portId": "C1"
+                      }
+                    },
+                    "R": {
+                      "from": {
+                        "port": 17,
+                        "to": false,
+                        "from": true,
+                        "portId": "C2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 16,
+                        "to": false,
+                        "from": true,
+                        "portId": "C1"
+                      },
+                      {
+                        "port": 16,
+                        "to": true,
+                        "from": false,
+                        "portId": "C1"
+                      },
+                      {
+                        "port": 17,
+                        "to": false,
+                        "from": true,
+                        "portId": "C2"
+                      }
+                    ],
+                    "tags": [
+                      "Reverb"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_8D",
+                    "name": "M2S processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8C",
+                      "name": "Lexicon PCM70",
+                      "product": {
+                        "name": "PCM70",
+                        "mfr": "Lexicon"
+                      }
+                    },
+                    "proc": true,
+                    "m2s": true,
+                    "phonia": {
+                      "m2s": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 16,
+                        "to": true,
+                        "from": false,
+                        "portId": "C1"
+                      },
+                      "from": {
+                        "port": 16,
+                        "to": false,
+                        "from": true,
+                        "portId": "C1"
+                      }
+                    },
+                    "R": {
+                      "from": {
+                        "port": 17,
+                        "to": false,
+                        "from": true,
+                        "portId": "C2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 16,
+                        "to": false,
+                        "from": true,
+                        "portId": "C1"
+                      },
+                      {
+                        "port": 16,
+                        "to": true,
+                        "from": false,
+                        "portId": "C1"
+                      },
+                      {
+                        "port": 17,
+                        "to": false,
+                        "from": true,
+                        "portId": "C2"
+                      }
+                    ],
+                    "tags": [
+                      "Reverb"
+                    ]
+                  },
+                  "split": true
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_ZS",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": true,
+                  "L": {
+                    "id": "MCJZ6CG6_7V",
+                    "name": "5",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 6,
+                        "to": true,
+                        "from": false,
+                        "portId": "A7"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 6,
+                        "to": true,
+                        "from": false,
+                        "portId": "A7"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  },
+                  "R": {
+                    "id": "MCJZ6CG6_7W",
+                    "name": "6",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 7,
+                        "to": true,
+                        "from": false,
+                        "portId": "A8"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 7,
+                        "to": true,
+                        "from": false,
+                        "portId": "A8"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": true,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "4": {
+      "id": "MCJZ6CG6_1GO",
+      "state": {
+        "name": "Bass",
+        "color": "#8de557",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": false
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_1GP",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_1GQ",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_8B",
+                    "name": "Hi-Z Input",
+                    "device": {
+                      "id": "MCJZ6CG6_88",
+                      "name": "Sunset Sound Tutti",
+                      "product": {
+                        "name": "Tutti",
+                        "mfr": "Sunset Sound"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 19,
+                        "to": false,
+                        "from": true,
+                        "portId": "C4"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 19,
+                        "to": false,
+                        "from": true,
+                        "portId": "C4"
+                      }
+                    ],
+                    "tags": [
+                      "hi-z"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_1RI",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7E",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7D",
+                      "name": "Fairchild 666",
+                      "product": {
+                        "name": "666",
+                        "mfr": "Fairchild"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 8,
+                        "to": true,
+                        "from": false,
+                        "portId": "B1"
+                      },
+                      "from": {
+                        "port": 8,
+                        "to": false,
+                        "from": true,
+                        "portId": "B1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 8,
+                        "to": false,
+                        "from": true,
+                        "portId": "B1"
+                      },
+                      {
+                        "port": 8,
+                        "to": true,
+                        "from": false,
+                        "portId": "B1"
+                      }
+                    ],
+                    "tags": [
+                      "reverb"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_1P5",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_82",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_81",
+                      "name": "Binson Effectron 2",
+                      "product": {
+                        "name": "Effectron",
+                        "mfr": "Binson"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 11,
+                        "to": true,
+                        "from": false,
+                        "portId": "B4"
+                      },
+                      "from": {
+                        "port": 11,
+                        "to": false,
+                        "from": true,
+                        "portId": "B4"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 11,
+                        "to": false,
+                        "from": true,
+                        "portId": "B4"
+                      },
+                      {
+                        "port": 11,
+                        "to": true,
+                        "from": false,
+                        "portId": "B4"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_1QB",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7Y",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7X",
+                      "name": "RAT>DM100",
+                      "product": {
+                        "mfr": "RAT>DM100"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 9,
+                        "to": true,
+                        "from": false,
+                        "portId": "B2"
+                      },
+                      "from": {
+                        "port": 9,
+                        "to": false,
+                        "from": true,
+                        "portId": "B2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 9,
+                        "to": false,
+                        "from": true,
+                        "portId": "B2"
+                      },
+                      {
+                        "port": 9,
+                        "to": true,
+                        "from": false,
+                        "portId": "B2"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_1GR",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_7R",
+                    "name": "1",
+                    "device": {
+                      "id": "MCJZ6CG6_7K",
+                      "name": "Avid MTRX II",
+                      "product": {
+                        "name": "MTRX II",
+                        "mfr": "Avid"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 2,
+                        "to": true,
+                        "from": false,
+                        "portId": "A3"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 2,
+                        "to": true,
+                        "from": false,
+                        "portId": "A3"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "5": {
+      "id": "MCJZ6CG6_1ZD",
+      "state": {
+        "name": "Guitar Pedals",
+        "color": "#EC853B",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_1ZE",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_1ZF",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_7G",
+                    "name": "line->guitar 1",
+                    "device": {
+                      "id": "MCJZ6CG6_7F",
+                      "name": "TK Audio Transceiver",
+                      "product": {
+                        "name": "Transceiver",
+                        "mfr": "TK Audio"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 0,
+                        "to": false,
+                        "from": true,
+                        "portId": "A1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 0,
+                        "to": false,
+                        "from": true,
+                        "portId": "A1"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_2IF",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7Y",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7X",
+                      "name": "RAT>DM100",
+                      "product": {
+                        "mfr": "RAT>DM100"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 9,
+                        "to": true,
+                        "from": false,
+                        "portId": "B2"
+                      },
+                      "from": {
+                        "port": 9,
+                        "to": false,
+                        "from": true,
+                        "portId": "B2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 9,
+                        "to": false,
+                        "from": true,
+                        "portId": "B2"
+                      },
+                      {
+                        "port": 9,
+                        "to": true,
+                        "from": false,
+                        "portId": "B2"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_2F7",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_7I",
+                    "name": "guitar->line 1",
+                    "device": {
+                      "id": "MCJZ6CG6_7F",
+                      "name": "TK Audio Transceiver",
+                      "product": {
+                        "name": "Transceiver",
+                        "mfr": "TK Audio"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 0,
+                        "to": true,
+                        "from": false,
+                        "portId": "A1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 0,
+                        "to": true,
+                        "from": false,
+                        "portId": "A1"
+                      }
+                    ],
+                    "tags": [
+                      "bump"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    },
+    "6": {
+      "id": "MCJZ6CG6_2KF",
+      "state": {
+        "name": "Wild Patch",
+        "color": "#EC853B",
+        "tags": []
+      },
+      "cond": {
+        "selected": false,
+        "active": true
+      },
+      "lanes": [
+        {
+          "id": "MCJZ6CG6_2KG",
+          "cells": [
+            {
+              "id": "MCJZ6CG6_2KH",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_9F",
+                    "name": "Front Panel 1",
+                    "device": {
+                      "id": "MCJZ6CG6_9E",
+                      "name": "Wolff Audio ProPatch",
+                      "product": {
+                        "name": "ProPatch",
+                        "mfr": "Wolff Audio"
+                      }
+                    },
+                    "source": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "source": true
+                    },
+                    "L": {
+                      "from": {
+                        "port": 48,
+                        "to": false,
+                        "from": true,
+                        "portId": "P1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 48,
+                        "to": false,
+                        "from": true,
+                        "portId": "P1"
+                      }
+                    ],
+                    "tags": [
+                      "patchbay"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": true,
+              "proc": false,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_2V8",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_8T",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_8S",
+                      "name": "Moog Echo",
+                      "product": {
+                        "name": "Echo",
+                        "mfr": "Moog"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 33,
+                        "to": true,
+                        "from": false,
+                        "portId": "E2"
+                      },
+                      "from": {
+                        "port": 33,
+                        "to": false,
+                        "from": true,
+                        "portId": "E2"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 33,
+                        "to": false,
+                        "from": true,
+                        "portId": "E2"
+                      },
+                      {
+                        "port": 33,
+                        "to": true,
+                        "from": false,
+                        "portId": "E2"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_2XH",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "L": {
+                    "id": "MCJZ6CG6_80",
+                    "name": "Mono Processor",
+                    "device": {
+                      "id": "MCJZ6CG6_7Z",
+                      "name": "DeltaLab Effectron",
+                      "product": {
+                        "name": "Effectron",
+                        "mfr": "DeltaLab"
+                      }
+                    },
+                    "proc": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "proc": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 10,
+                        "to": true,
+                        "from": false,
+                        "portId": "B3"
+                      },
+                      "from": {
+                        "port": 10,
+                        "to": false,
+                        "from": true,
+                        "portId": "B3"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 10,
+                        "to": false,
+                        "from": true,
+                        "portId": "B3"
+                      },
+                      {
+                        "port": 10,
+                        "to": true,
+                        "from": false,
+                        "portId": "B3"
+                      }
+                    ],
+                    "tags": [
+                      "delay"
+                    ]
+                  },
+                  "split": false
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": true,
+              "dest": false
+            },
+            {
+              "id": "MCJZ6CG6_2KI",
+              "state": {
+                "active": {
+                  "L": 0,
+                  "R": 0
+                }
+              },
+              "items": [
+                {
+                  "split": false,
+                  "L": {
+                    "id": "MCJZ6CG6_9V",
+                    "name": "Front Panel 1",
+                    "device": {
+                      "id": "MCJZ6CG6_9E",
+                      "name": "Wolff Audio ProPatch",
+                      "product": {
+                        "name": "ProPatch",
+                        "mfr": "Wolff Audio"
+                      }
+                    },
+                    "dest": true,
+                    "mono": true,
+                    "phonia": {
+                      "mono": true
+                    },
+                    "role": {
+                      "dest": true
+                    },
+                    "L": {
+                      "to": {
+                        "port": 48,
+                        "to": true,
+                        "from": false,
+                        "portId": "P1"
+                      }
+                    },
+                    "channels": [
+                      {
+                        "port": 48,
+                        "to": true,
+                        "from": false,
+                        "portId": "P1"
+                      }
+                    ],
+                    "tags": [
+                      "patchbay"
+                    ]
+                  }
+                }
+              ],
+              "ab": false,
+              "split": false,
+              "source": false,
+              "proc": false,
+              "dest": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "schema": {
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  }
+}
