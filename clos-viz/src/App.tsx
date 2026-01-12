@@ -139,6 +139,14 @@ export default function App() {
   const [solverRunning, setSolverRunning] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
 
+  // State files state (for JSON fabric states)
+  const [stateFiles, setStateFiles] = useState<string[]>([])
+  const [selectedStateFile, setSelectedStateFile] = useState<string | null>(null)
+  const stateUploadRef = useRef<HTMLInputElement>(null)
+
+  // Tab state for file manager
+  const [activeTab, setActiveTab] = useState<'routes' | 'states'>('routes')
+
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [renameFile, setRenameFile] = useState<string | null>(null)
@@ -174,6 +182,7 @@ export default function App() {
 
   // Relay mode - toggle with 'c' key
   const [relayMode, setRelayMode] = useState(false)
+  const [showFirmwareFills, setShowFirmwareFills] = useState(false)
 
   // Solver log state
   const [solverLog, setSolverLog] = useState<LogEntry[]>([])
@@ -196,8 +205,9 @@ export default function App() {
 
   // Helper to strip size suffix from filename for display
   // e.g., "stress_stability.10.txt" -> "stress_stability"
+  // e.g., "my_state.10.json" -> "my_state"
   const displayName = useCallback((filename: string) => {
-    return filename.replace(/\.\d+\.txt$/, "")
+    return filename.replace(/\.\d+\.(txt|json)$/, "")
   }, [])
 
   const buildRoutesFromState = useCallback((currentState: FabricState | null) => {
@@ -212,6 +222,40 @@ export default function App() {
     }
     return nextRoutes
   }, [])
+
+  // Helper to trigger file download in browser
+  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [])
+
+  // Export current state as JSON file
+  const exportStateAsJson = useCallback(() => {
+    if (!state) return
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const filename = `fabric-state-${timestamp}.json`
+    downloadFile(JSON.stringify(state, null, 2), filename, 'application/json')
+  }, [state, downloadFile])
+
+  // Export current routes as .txt file (input.output format)
+  const exportRoutesAsTxt = useCallback(() => {
+    if (!state) return
+    const currentRoutes = buildRoutesFromState(state)
+    const lines: string[] = []
+    for (const [input, outputs] of Object.entries(currentRoutes)) {
+      for (const output of outputs) {
+        lines.push(`${input}.${output}`)
+      }
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const filename = `routes-${timestamp}.txt`
+    downloadFile(lines.join('\n'), filename, 'text/plain')
+  }, [state, buildRoutesFromState, downloadFile])
 
   const buildLocksPayload = useCallback((locks: LockMap): LockPayload[] => {
     const payload: LockPayload[] = []
@@ -560,9 +604,10 @@ export default function App() {
     fetchCrossbarSize()
   }, [])
 
-  // Fetch route files when crossbar size changes
+  // Fetch route and state files when crossbar size changes
   useEffect(() => {
     fetchRouteFiles(crossbarSize)
+    fetchStateFiles(crossbarSize)
   }, [crossbarSize])
 
   async function fetchCrossbarSize() {
@@ -634,6 +679,16 @@ export default function App() {
       setRouteFiles(data.files || [])
     } catch (e) {
       console.error("Failed to fetch routes:", e)
+    }
+  }
+
+  async function fetchStateFiles(size: number = crossbarSize) {
+    try {
+      const res = await fetch(`/api/states?size=${size}`)
+      const data = await res.json()
+      setStateFiles(data.files || [])
+    } catch (e) {
+      console.error("Failed to fetch states:", e)
     }
   }
 
@@ -809,6 +864,7 @@ export default function App() {
     }
 
     setLoading(true)
+    setSolverRunning(true)
     setSolverLog([]) // Clear log - new run makes previous log stale
     setFabricSummary(null) // Clear summary - new run replaces it
     setSelectedRoute(filename)
@@ -941,6 +997,171 @@ export default function App() {
       await fetchRouteFiles()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to upload file")
+    }
+  }
+
+  // State file management functions
+  async function uploadStateFile(file: File) {
+    setError(null)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const res = await fetch("/api/states", {
+        method: "POST",
+        body: formData
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to upload state file")
+      }
+
+      await fetchStateFiles()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload state file")
+    }
+  }
+
+  async function loadStateFile(filename: string) {
+    setError(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch(`/api/states/${encodeURIComponent(filename)}`)
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to load state file")
+      }
+
+      const stateData = await res.json()
+      const parsed = fabricStateSchema.parse(stateData)
+      setState(parsed)
+      setSelectedStateFile(filename)
+      setSelectedInput(null)
+      setLocksByInput({})
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load state file")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveStateFile(filename: string) {
+    if (!state) return
+    setError(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch(`/api/states/${encodeURIComponent(filename)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to save state file")
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save state file")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveAsStateFile(name: string) {
+    if (!name.trim() || !state) {
+      setShowSaveAsInput(false)
+      setSaveAsName("")
+      return
+    }
+
+    setError(null)
+    setLoading(true)
+
+    try {
+      const res = await fetch("/api/states/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name.trim(), size: crossbarSize, state })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to create state file")
+      }
+
+      const data = await res.json()
+      await fetchStateFiles()
+      setSelectedStateFile(data.filename)
+      setShowSaveAsInput(false)
+      setSaveAsName("")
+      setDropdownOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save state file")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function renameStateFile(oldName: string, newName: string) {
+    if (!newName.trim() || newName === displayName(oldName)) {
+      setRenameFile(null)
+      setRenameValue("")
+      return
+    }
+
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/states/${encodeURIComponent(oldName)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newName: newName.trim() })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to rename state file")
+      }
+
+      const data = await res.json()
+      await fetchStateFiles()
+
+      if (selectedStateFile === oldName) {
+        setSelectedStateFile(data.filename)
+      }
+
+      setRenameFile(null)
+      setRenameValue("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename state file")
+    }
+  }
+
+  async function deleteStateFile(filename: string) {
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/states/${encodeURIComponent(filename)}`, {
+        method: "DELETE"
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete state file")
+      }
+
+      await fetchStateFiles()
+
+      if (selectedStateFile === filename) {
+        setSelectedStateFile(null)
+      }
+
+      setDropdownOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete state file")
     }
   }
 
@@ -1270,21 +1491,6 @@ export default function App() {
     await applyLocksUpdate(nextLocks)
   }
 
-  function onJsonFile(file: File) {
-    setError(null)
-    file.text().then(text => {
-      try {
-        const json = JSON.parse(text)
-        const parsed = fabricStateSchema.parse(json)
-        setState(parsed)
-        setSelectedInput(null)
-        setSelectedRoute(null)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to parse JSON")
-      }
-    })
-  }
-
   const filteredInputs = useMemo(() => {
     if (!filter.trim()) return inputs
     const q = filter.trim()
@@ -1326,31 +1532,14 @@ export default function App() {
             [C] Relay Mode
           </div>
         )}
-        <div className="sizeSelector">
-          <label>
-            Size:
-            <input
-              type="number"
-              min={2}
-              step={1}
-              list="size-options"
-              value={sizeInput}
-              onChange={e => setSizeInput(e.target.value)}
-              onBlur={() => commitSizeInput()}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  e.currentTarget.blur()
-                }
-              }}
-              disabled={loading}
-            />
-            <datalist id="size-options">
-              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
-                <option key={n} value={n}>{n}×{n}</option>
-              ))}
-            </datalist>
-          </label>
-        </div>
+        <label className="stabilityToggle">
+          <input
+            type="checkbox"
+            checked={showFirmwareFills}
+            onChange={e => setShowFirmwareFills(e.target.checked)}
+          />
+          Show Firmware Fills
+        </label>
         <label className="stabilityToggle">
           <input
             type="checkbox"
@@ -1366,17 +1555,6 @@ export default function App() {
             onChange={e => setIncremental(e.target.checked)}
           />
           Incremental Repair
-        </label>
-        <label className="file">
-          <input
-            type="file"
-            accept="application/json"
-            onChange={e => {
-              const f = e.target.files?.[0]
-              if (f) onJsonFile(f)
-            }}
-          />
-          Load JSON
         </label>
         {solverRunning && (
           <button className="killRunBtn" onClick={cancelSolverRun}>
@@ -1406,11 +1584,28 @@ export default function App() {
 
       <div className="body" style={{ gridTemplateColumns: `280px minmax(0, 960px) 6px 1fr` }}>
         <aside className="sidebar">
-          {/* Route Files Section - Dropdown Selector */}
+          {/* File Manager Section with Tabs */}
           <div className="panel">
-            <div className="panelTitle">Route Files</div>
+            {/* Tab buttons */}
+            <div className="fileTabs">
+              <button
+                className={`fileTab ${activeTab === 'routes' ? 'active' : ''}`}
+                onClick={() => setActiveTab('routes')}
+              >
+                Routes
+              </button>
+              <button
+                className={`fileTab ${activeTab === 'states' ? 'active' : ''}`}
+                onClick={() => setActiveTab('states')}
+              >
+                States
+              </button>
+            </div>
 
-            <div className="routeSelector" ref={dropdownRef}>
+            {/* Routes Tab Content */}
+            {activeTab === 'routes' && (
+              <>
+                <div className="routeSelector" ref={dropdownRef}>
               {/* Dropdown trigger */}
               <button
                 className={`routeDropdownTrigger ${modifiedFile ? "hasChanges" : ""}`}
@@ -1487,6 +1682,18 @@ export default function App() {
                     }}
                   >
                     ↑ Upload
+                  </button>
+
+                  {/* Download/Export option */}
+                  <button
+                    className="routeDropdownItem routeDropdownDownload"
+                    onClick={() => {
+                      exportRoutesAsTxt()
+                      setDropdownOpen(false)
+                    }}
+                    disabled={!state}
+                  >
+                    ↓ Download
                   </button>
 
                   {/* Save As option */}
@@ -1666,6 +1873,217 @@ export default function App() {
                 Save Changes
               </button>
             )}
+              </>
+            )}
+
+            {/* States Tab Content */}
+            {activeTab === 'states' && (
+              <>
+                <div className="routeSelector" ref={dropdownRef}>
+                  {/* Dropdown trigger */}
+                  <button
+                    className="routeDropdownTrigger"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    disabled={loading}
+                  >
+                    <span className="routeFileName">
+                      {selectedStateFile ? displayName(selectedStateFile) : "Select state file..."}
+                    </span>
+                    <span className="dropdownChevron">{dropdownOpen ? "▲" : "▼"}</span>
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {dropdownOpen && (
+                    <div className="routeDropdownMenu">
+                      {/* Upload option */}
+                      <button
+                        className="routeDropdownItem routeDropdownUpload"
+                        onClick={() => {
+                          stateUploadRef.current?.click()
+                          setDropdownOpen(false)
+                        }}
+                      >
+                        ↑ Upload
+                      </button>
+
+                      {/* Download/Export option */}
+                      <button
+                        className="routeDropdownItem routeDropdownDownload"
+                        onClick={() => {
+                          exportStateAsJson()
+                          setDropdownOpen(false)
+                        }}
+                        disabled={!state}
+                      >
+                        ↓ Download
+                      </button>
+
+                      {/* Save As option */}
+                      {showSaveAsInput ? (
+                        <div className="routeDropdownItem routeDropdownNewInput">
+                          <input
+                            ref={saveAsInputRef}
+                            type="text"
+                            className="routeNameInput"
+                            placeholder="filename.json"
+                            value={saveAsName}
+                            onChange={e => setSaveAsName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                saveAsStateFile(saveAsName)
+                              } else if (e.key === "Escape") {
+                                setShowSaveAsInput(false)
+                                setSaveAsName("")
+                              }
+                            }}
+                            onBlur={() => {
+                              if (skipSaveAsInputBlurRef.current) {
+                                skipSaveAsInputBlurRef.current = false
+                                return
+                              }
+                              if (saveAsName.trim()) {
+                                saveAsStateFile(saveAsName)
+                              } else {
+                                setShowSaveAsInput(false)
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          className="routeDropdownItem routeDropdownSaveAs"
+                          onClick={() => {
+                            setShowSaveAsInput(true)
+                            setSaveAsName(selectedStateFile ? displayName(selectedStateFile) : "")
+                          }}
+                          disabled={!state}
+                        >
+                          Save As...
+                        </button>
+                      )}
+
+                      <div className="routeDropdownDivider" />
+
+                      {/* File list */}
+                      {stateFiles.length === 0 ? (
+                        <div className="routeDropdownHint">No state files found</div>
+                      ) : (
+                        stateFiles.map(f => (
+                          <div
+                            key={f}
+                            className={`routeDropdownItem ${selectedStateFile === f ? "active" : ""}`}
+                          >
+                            {renameFile === f ? (
+                              <input
+                                ref={renameInputRef}
+                                type="text"
+                                className="routeNameInput"
+                                value={renameValue}
+                                onChange={e => setRenameValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") {
+                                    renameStateFile(f, renameValue)
+                                  } else if (e.key === "Escape") {
+                                    setRenameFile(null)
+                                    setRenameValue("")
+                                  }
+                                }}
+                                onBlur={() => renameStateFile(f, renameValue)}
+                                onClick={e => e.stopPropagation()}
+                              />
+                            ) : (
+                              <>
+                                <button
+                                  className="routeDropdownItemMain"
+                                  onClick={() => {
+                                    loadStateFile(f)
+                                    setDropdownOpen(false)
+                                  }}
+                                >
+                                  {displayName(f)}
+                                </button>
+                                <div className="routeDropdownActions">
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      setRenameFile(f)
+                                      setRenameValue(displayName(f))
+                                    }}
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    className="delete"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      deleteStateFile(f)
+                                    }}
+                                    title="Delete"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Hidden file input for state upload */}
+                <input
+                  ref={stateUploadRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) uploadStateFile(f)
+                    e.target.value = ""
+                  }}
+                />
+
+                {/* Save button - save current state to selected file */}
+                {selectedStateFile && state && (
+                  <button
+                    className="saveBtn fullWidth"
+                    onClick={() => saveStateFile(selectedStateFile)}
+                    disabled={loading}
+                  >
+                    Save State
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Crossbar Size */}
+          <div className="panel">
+            <div className="panelTitle">Crossbar Size</div>
+            <div className="sizeSelector sidebar">
+              <input
+                type="number"
+                min={2}
+                step={1}
+                list="size-options"
+                value={sizeInput}
+                onChange={e => setSizeInput(e.target.value)}
+                onBlur={() => commitSizeInput()}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur()
+                  }
+                }}
+                disabled={loading}
+              />
+              <datalist id="size-options">
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
+                  <option key={n} value={n}>{n}×{n}</option>
+                ))}
+              </datalist>
+            </div>
           </div>
 
           {/* Locks Section */}
@@ -1742,6 +2160,7 @@ export default function App() {
               activeInputCount={inputs.length}
               activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
               relayMode={relayMode}
+              showFirmwareFills={showFirmwareFills}
             />
           ) : (
             <div className="empty">Select a route file from the sidebar to visualize the fabric</div>

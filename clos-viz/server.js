@@ -23,6 +23,7 @@ const parsedPort = rawPort ? parseInt(rawPort, 10) : NaN
 const PORT = Number.isFinite(parsedPort) ? parsedPort : 4121
 
 const ROUTES_DIR = path.join(__dirname, "public", "routes")
+const STATES_DIR = path.join(__dirname, "public", "states")
 const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
 
 // Cache last fabric state for stability preservation
@@ -212,16 +213,19 @@ function parseRouterLog(stdout, state = {}) {
   return entries
 }
 
-// Ensure routes directory exists
+// Ensure routes and states directories exist
 if (!fs.existsSync(ROUTES_DIR)) {
   fs.mkdirSync(ROUTES_DIR, { recursive: true })
+}
+if (!fs.existsSync(STATES_DIR)) {
+  fs.mkdirSync(STATES_DIR, { recursive: true })
 }
 
 app.use(cors())
 app.use(express.json())
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
+// Configure multer for route file uploads
+const routeStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, ROUTES_DIR),
   filename: (req, file, cb) => {
     // Sanitize filename and add size suffix
@@ -233,7 +237,22 @@ const storage = multer.diskStorage({
     cb(null, finalName)
   }
 })
-const upload = multer({ storage })
+const upload = multer({ storage: routeStorage })
+
+// Configure multer for state file uploads
+const stateStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, STATES_DIR),
+  filename: (req, file, cb) => {
+    // Sanitize filename and add size suffix
+    let name = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")
+    // Strip existing extensions to get base name
+    const baseName = name.replace(/\.\d+\.json$/, "").replace(/\.json$/, "")
+    // Add current size suffix
+    const finalName = `${baseName}.${currentSize}.json`
+    cb(null, finalName)
+  }
+})
+const uploadState = multer({ storage: stateStorage })
 
 // GET /api/routes - List route files filtered by crossbar size
 // Query param: ?size=10 (defaults to current size)
@@ -439,6 +458,215 @@ app.put("/api/routes/:filename", (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// ============================================================================
+// STATE FILE ENDPOINTS (JSON fabric states)
+// ============================================================================
+
+// GET /api/states - List state files filtered by crossbar size
+// Query param: ?size=10 (defaults to current size)
+app.get("/api/states", (req, res) => {
+  try {
+    const size = parseInt(req.query.size, 10) || currentSize
+    const suffix = `.${size}.json`
+
+    const files = fs.readdirSync(STATES_DIR)
+      .filter(f => f.endsWith(suffix))
+      .sort()
+    res.json({ files })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/states/:filename - Return state file contents
+app.get("/api/states/:filename", (req, res) => {
+  const { filename } = req.params
+  const filepath = path.join(STATES_DIR, filename)
+
+  // Security: ensure file is within STATES_DIR
+  if (!filepath.startsWith(STATES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  if (!fs.existsSync(filepath)) {
+    return res.status(404).json({ error: "State file not found" })
+  }
+
+  try {
+    const contents = fs.readFileSync(filepath, "utf-8")
+    res.type("application/json").send(contents)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/states - Upload a new state file
+app.post("/api/states", uploadState.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" })
+  }
+  res.json({ filename: req.file.filename, message: "File uploaded successfully" })
+})
+
+// POST /api/states/create - Create a new state file with provided content
+// Body: { filename: "mystate", size?: 10, state: {...} }
+app.post("/api/states/create", (req, res) => {
+  const { filename, size, state } = req.body
+  const targetSize = parseInt(size, 10) || currentSize
+
+  if (!filename) {
+    return res.status(400).json({ error: "No filename provided" })
+  }
+
+  if (!state || typeof state !== "object") {
+    return res.status(400).json({ error: "No state object provided" })
+  }
+
+  // Strip any existing extensions for clean naming
+  let baseName = filename.replace(/\.\d+\.json$/, "").replace(/\.json$/, "")
+
+  // Validate base filename
+  if (!/^[a-zA-Z0-9_-]+$/.test(baseName)) {
+    return res.status(400).json({ error: "Invalid filename. Use only letters, numbers, dashes, and underscores." })
+  }
+
+  // Build final name with size suffix
+  const finalName = `${baseName}.${targetSize}.json`
+  const filepath = path.join(STATES_DIR, finalName)
+
+  // Security: ensure file is within STATES_DIR
+  if (!filepath.startsWith(STATES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  // Check if file already exists
+  if (fs.existsSync(filepath)) {
+    return res.status(409).json({ error: "File already exists" })
+  }
+
+  try {
+    fs.writeFileSync(filepath, JSON.stringify(state, null, 2))
+    res.json({ filename: finalName, success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PUT /api/states/:filename - Update a state file with new content
+app.put("/api/states/:filename", (req, res) => {
+  const { filename } = req.params
+  const { state } = req.body
+
+  // Validate filename (prevent path traversal)
+  if (filename.includes("..") || filename.includes("/")) {
+    return res.status(400).json({ error: "Invalid filename" })
+  }
+
+  const filepath = path.join(STATES_DIR, filename)
+
+  // Security: ensure file is within STATES_DIR
+  if (!filepath.startsWith(STATES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  // Check file exists
+  if (!fs.existsSync(filepath)) {
+    return res.status(404).json({ error: "File not found" })
+  }
+
+  if (!state || typeof state !== "object") {
+    return res.status(400).json({ error: "No state object provided" })
+  }
+
+  try {
+    fs.writeFileSync(filepath, JSON.stringify(state, null, 2))
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /api/states/:filename - Rename a state file
+app.patch("/api/states/:filename", (req, res) => {
+  const { filename } = req.params
+  const { newName } = req.body
+
+  if (!newName) {
+    return res.status(400).json({ error: "No new name provided" })
+  }
+
+  // Validate original filename
+  if (filename.includes("..") || filename.includes("/")) {
+    return res.status(400).json({ error: "Invalid filename" })
+  }
+
+  // Extract size from original filename
+  const sizeMatch = filename.match(/\.(\d+)\.json$/)
+  const size = sizeMatch ? sizeMatch[1] : currentSize
+
+  // Strip any extensions from new name to get base name
+  const baseName = newName.replace(/\.\d+\.json$/, "").replace(/\.json$/, "")
+
+  // Validate base name
+  if (!/^[a-zA-Z0-9_-]+$/.test(baseName)) {
+    return res.status(400).json({ error: "Invalid new filename. Use only letters, numbers, dashes, and underscores." })
+  }
+
+  // Build final name preserving size suffix
+  const finalNewName = `${baseName}.${size}.json`
+
+  const oldPath = path.join(STATES_DIR, filename)
+  const newPath = path.join(STATES_DIR, finalNewName)
+
+  // Security: ensure both paths are within STATES_DIR
+  if (!oldPath.startsWith(STATES_DIR) || !newPath.startsWith(STATES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  // Check source exists
+  if (!fs.existsSync(oldPath)) {
+    return res.status(404).json({ error: "File not found" })
+  }
+
+  // Check destination doesn't exist
+  if (fs.existsSync(newPath) && oldPath !== newPath) {
+    return res.status(409).json({ error: "A file with that name already exists" })
+  }
+
+  try {
+    fs.renameSync(oldPath, newPath)
+    res.json({ filename: finalNewName, success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /api/states/:filename - Delete a state file
+app.delete("/api/states/:filename", (req, res) => {
+  const filename = req.params.filename
+  const filepath = path.join(STATES_DIR, filename)
+
+  // Security: ensure file is within STATES_DIR
+  if (!filepath.startsWith(STATES_DIR)) {
+    return res.status(403).json({ error: "Invalid path" })
+  }
+
+  try {
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath)
+      res.json({ message: "File deleted" })
+    } else {
+      res.status(404).json({ error: "File not found" })
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ============================================================================
+// SOLVER ENDPOINTS
+// ============================================================================
 
 // POST /api/process - Run router on a route file
 app.post("/api/process", async (req, res) => {

@@ -5,6 +5,7 @@ type Path = {
   inIdx: number
   outIdx: number
   owner: number
+  isFiller?: boolean
 }
 
 type Props = {
@@ -126,7 +127,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                   if (e.altKey) {
                     // Option-click: highlight/select route
                     const path = paths.find(p => p.inIdx === i)
-                    if (path) onSelectInput(path.owner)
+                    if (path && path.owner > 0) onSelectInput(path.owner)
                   } else if (onRouteClick) {
                     // Click or Shift-click: route creation
                     onRouteClick(label, true, e)
@@ -134,7 +135,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 }}
                 onMouseEnter={() => {
                   const path = paths.find(p => p.inIdx === i)
-                  if (path && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                  if (path && path.owner > 0 && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
                 }}
                 onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
                 title={label}
@@ -164,8 +165,10 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 <path
                   key={idx}
                   d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
-                  className={`crossbarPath ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
-                  onClick={() => onSelectInput(p.owner)}
+                  className={`crossbarPath ${p.isFiller ? "filler" : ""} ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
+                  onClick={() => {
+                    if (p.owner > 0) onSelectInput(p.owner)
+                  }}
                 />
               )
             })}
@@ -192,7 +195,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                   if (e.altKey) {
                     // Option-click: highlight/select route
                     const path = paths.find(p => p.outIdx === i)
-                    if (path) onSelectInput(path.owner)
+                    if (path && path.owner > 0) onSelectInput(path.owner)
                   } else if (onRouteClick) {
                     // Click or Shift-click: route creation
                     onRouteClick(label, false, e)
@@ -200,7 +203,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 }}
                 onMouseEnter={() => {
                   const path = paths.find(p => p.outIdx === i)
-                  if (path && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                  if (path && path.owner > 0 && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
                 }}
                 onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
                 title={label}
