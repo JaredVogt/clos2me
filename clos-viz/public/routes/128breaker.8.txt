@@ -1,0 +1,10 @@
+# 128breaker - a pattern clos_mult_router can solve but pp128 cannot
+#
+# Input 1 multicasts to one output in each egress block (8 outputs total)
+# Input 2 routes to output 2
+#
+# clos_mult_router: Solves it using spine sharing for multicast
+# pp128_solver: Fails - its algorithm can't handle this multicast pattern
+#
+1.1.9.17.25.33.41.49.57
+2.2

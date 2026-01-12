@@ -25,6 +25,7 @@ const PORT = Number.isFinite(parsedPort) ? parsedPort : 4121
 const ROUTES_DIR = path.join(__dirname, "public", "routes")
 const STATES_DIR = path.join(__dirname, "public", "states")
 const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
+const PP128_SOLVER_PATH = path.resolve(process.env.HOME, "projects", "pp128-fw", "comparison", "pp128_solver")
 
 // Cache last fabric state for stability preservation
 let lastState = null
@@ -219,6 +220,117 @@ if (!fs.existsSync(ROUTES_DIR)) {
 }
 if (!fs.existsSync(STATES_DIR)) {
   fs.mkdirSync(STATES_DIR, { recursive: true })
+}
+
+// ============================================================================
+// pp128 solver conversion functions
+// ============================================================================
+
+// Parse route file text (1-based) and convert to pp128 JSON format (0-based)
+// Route file format: "input.output" or "input.output.output" per line
+// pp128 format: { routes: [input_for_output_0, input_for_output_1, ...] }
+function parseRoutesToPp128Format(routeText) {
+  const routes = new Array(64).fill(-1)
+  const lines = routeText.split(/\r?\n/)
+
+  for (const rawLine of lines) {
+    const line = rawLine.split('#')[0].trim()
+    if (!line) continue
+
+    const parts = line.split('.').map(p => p.trim()).filter(Boolean)
+    if (parts.length < 2) continue
+
+    const inputId = parseInt(parts[0], 10)
+    if (!Number.isFinite(inputId) || inputId <= 0) continue
+
+    // Convert 1-based input to 0-based
+    const zeroBasedInput = inputId - 1
+
+    for (let i = 1; i < parts.length; i++) {
+      const outputPort = parseInt(parts[i], 10)
+      if (!Number.isFinite(outputPort) || outputPort <= 0 || outputPort > 64) continue
+      // Convert 1-based output to 0-based array index
+      const zeroBasedOutput = outputPort - 1
+      routes[zeroBasedOutput] = zeroBasedInput
+    }
+  }
+
+  return { routes }
+}
+
+// Convert pp128 solver output to clos2me state format
+// pp128 output: { ins: [...], mids: [...], outs: [...], success, solve_ms }
+// clos2me state: { N, TOTAL_BLOCKS, MAX_PORTS, s1_to_s2, s2_to_s3, s3_port_owner, s3_port_spine, ... }
+function convertPp128OutputToState(pp128Output, inputRoutes) {
+  const N = 8  // pp128 is fixed 8x8
+  const TOTAL_BLOCKS = N
+  const MAX_PORTS = N * N  // 64
+
+  // Initialize state structure
+  const state = {
+    version: 1,
+    N,
+    TOTAL_BLOCKS,
+    MAX_PORTS,
+    s1_to_s2: Array.from({ length: TOTAL_BLOCKS }, () => Array(N).fill(0)),
+    s2_to_s3: Array.from({ length: N }, () => Array(TOTAL_BLOCKS).fill(0)),
+    s3_port_owner: Array(MAX_PORTS + 1).fill(0),
+    s3_port_spine: Array(MAX_PORTS + 1).fill(-1),
+    desired_owner: Array(MAX_PORTS + 1).fill(0),
+    solve_ms: pp128Output.solve_ms || 0,
+    solve_total_ms: pp128Output.solve_ms || 0,
+    solve_nodes: 0,
+    solve_nodes_total: 0,
+    repack_count: pp128Output.success ? 1 : 0,
+    stability_changes: 0,
+    strict_stability: false,
+    incremental: false,
+    lock_conflicts: []
+  }
+
+  // Build the state from pp128 output arrays
+  // inputRoutes.routes[output] = input (0-based)
+  // pp128Output.outs[i] = egress-layer input index for output i
+  //
+  // pp128 Clos structure (8x8):
+  // - 8 ingress blocks, 8 spines, 8 egress blocks
+  // - Each block has 8 inputs and 8 outputs
+  // - outs[output] gives the egress-layer input index (0-63)
+  // - spine = outs[output] % 8 (each egress block has 8 inputs, one per spine)
+
+  const { outs } = pp128Output
+
+  // Reconstruct s3_port_owner and s3_port_spine from routes and outs
+  for (let output0 = 0; output0 < 64; output0++) {
+    const input0 = inputRoutes.routes[output0]
+    if (input0 < 0) continue
+
+    // Convert to 1-based for clos2me state
+    const input1 = input0 + 1
+    const output1 = output0 + 1
+
+    state.s3_port_owner[output1] = input1
+    state.desired_owner[output1] = input1
+
+    // Get spine from egress-layer input index
+    // outs[output] = egress_block * 8 + spine, so spine = outs[output] % 8
+    const egressLayerInput = outs[output0]
+    if (egressLayerInput < 0) continue
+
+    const spine = egressLayerInput % N
+    const egressBlock = Math.floor(output0 / N)
+    const ingressBlock = Math.floor(input0 / N)
+
+    state.s3_port_spine[output1] = spine
+
+    // Record trunk ownership in s2_to_s3 (spine -> egress block)
+    state.s2_to_s3[spine][egressBlock] = input1
+
+    // Record trunk ownership in s1_to_s2 (ingress block -> spine)
+    state.s1_to_s2[ingressBlock][spine] = input1
+  }
+
+  return state
 }
 
 app.use(cors())
@@ -786,9 +898,10 @@ app.post("/api/process", async (req, res) => {
 })
 
 // GET /api/process-stream - SSE endpoint for streaming solver output
-// Query: ?filename=routes.txt&size=10&incremental=true
+// Query: ?filename=routes.txt&size=10&incremental=true&solver=clos|pp128
 app.get("/api/process-stream", (req, res) => {
-  const { filename, size, incremental } = req.query
+  const { filename, size, incremental, solver } = req.query
+  const usePp128 = solver === "pp128"
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
@@ -802,6 +915,11 @@ app.get("/api/process-stream", (req, res) => {
     }
   }
 
+  // pp128 requires 8×8 (64 ports)
+  if (usePp128 && currentSize !== 8) {
+    return res.status(400).json({ error: "pp128 solver requires 8×8 crossbar size" })
+  }
+
   const routePath = path.join(ROUTES_DIR, filename)
 
   // Security: ensure file is within ROUTES_DIR
@@ -813,8 +931,9 @@ app.get("/api/process-stream", (req, res) => {
     return res.status(404).json({ error: "Route file not found" })
   }
 
-  if (!fs.existsSync(ROUTER_PATH)) {
-    return res.status(500).json({ error: "Router binary not found" })
+  const solverPath = usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH
+  if (!fs.existsSync(solverPath)) {
+    return res.status(500).json({ error: `${usePp128 ? "pp128" : "Router"} binary not found at ${solverPath}` })
   }
 
   // Set up SSE headers
@@ -832,6 +951,130 @@ app.get("/api/process-stream", (req, res) => {
   // Clear locks when loading a file (but preserve lastState for delta tracking)
   lastLocks = []
 
+  // Handle pp128 solver differently
+  if (usePp128) {
+    // Read route file and convert to pp128 format
+    let routeText
+    try {
+      routeText = fs.readFileSync(routePath, "utf-8")
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to read route file: ${err.message}` })}\n\n`)
+      res.end()
+      return
+    }
+
+    const pp128Input = parseRoutesToPp128Format(routeText)
+    const tmpPp128Input = path.join(__dirname, ".tmp_pp128_input.json")
+
+    try {
+      fs.writeFileSync(tmpPp128Input, JSON.stringify(pp128Input))
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to write pp128 input: ${err.message}` })}\n\n`)
+      res.end()
+      return
+    }
+
+    // Spawn pp128 solver
+    const child = spawn(PP128_SOLVER_PATH, [tmpPp128Input])
+    const run = beginRun(child, [tmpPp128Input])
+
+    if (!run) {
+      child.kill()
+      res.write(`data: ${JSON.stringify({ type: "complete", error: "Solver already running" })}\n\n`)
+      res.end()
+      return
+    }
+
+    run.onCancel = () => {
+      try {
+        const summary = buildRunSummary(run)
+        res.write(`data: ${JSON.stringify({ type: "complete", error: "Run cancelled", summary })}\n\n`)
+        res.end()
+      } catch (err) {
+        // ignore write errors on cancel
+      }
+    }
+
+    let stdoutBuffer = ""
+    let stderrBuffer = ""
+
+    child.stdout.on("data", (data) => {
+      stdoutBuffer += data.toString()
+    })
+
+    child.stderr.on("data", (data) => {
+      stderrBuffer += data.toString()
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: data.toString() })}\n\n`)
+      }
+    })
+
+    child.on("close", (code) => {
+      const canWrite = !res.writableEnded
+      const summary = buildRunSummary(run)
+      const cancelled = run.cancelled
+
+      if (cancelled) {
+        finishRun(run)
+        if (canWrite) res.end()
+        return
+      }
+
+      if (code !== 0) {
+        finishRun(run)
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `pp128 solver exited with code ${code}: ${stderrBuffer}` })}\n\n`)
+          res.end()
+        }
+        return
+      }
+
+      try {
+        // Parse pp128 JSON output - strip any leading separator lines
+        const jsonStart = stdoutBuffer.indexOf('{')
+        if (jsonStart === -1) {
+          throw new Error("No JSON found in pp128 output")
+        }
+        const pp128Output = JSON.parse(stdoutBuffer.slice(jsonStart))
+
+        if (!pp128Output.success) {
+          finishRun(run)
+          if (canWrite) {
+            res.write(`data: ${JSON.stringify({ type: "complete", error: pp128Output.error || "pp128 solver failed to find solution" })}\n\n`)
+            res.end()
+          }
+          return
+        }
+
+        // Log solver success
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "log", line: `[S] pp128 solver completed in ${pp128Output.solve_ms}ms` })}\n\n`)
+        }
+
+        // Convert pp128 output to clos2me state format
+        const state = convertPp128OutputToState(pp128Output, pp128Input)
+
+        // Cache for future runs
+        lastState = state
+
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", state, summary })}\n\n`)
+          res.end()
+        }
+      } catch (err) {
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to parse pp128 output: ${err.message}` })}\n\n`)
+          res.end()
+        }
+      }
+
+      finishRun(run)
+    })
+
+    return
+  }
+
+  // Standard clos_mult_router path
   // Create temp files
   const tmpJson = path.join(__dirname, ".tmp_state.json")
   const tmpPrevState = path.join(__dirname, ".tmp_prev_state.json")
@@ -950,10 +1193,11 @@ app.get("/api/process-stream", (req, res) => {
 })
 
 // POST /api/process-routes - Process routes from JSON directly
-// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, incremental?: boolean, size?: number }
+// Body: { routes: { [inputId: string]: number[] }, strictStability?: boolean, incremental?: boolean, size?: number, solver?: "clos" | "pp128" }
 // e.g., { routes: { "1": [21, 22], "7": [31, 44, 92] }, strictStability: true, incremental: true, size: 8 }
 app.post("/api/process-routes", (req, res) => {
-  const { routes, strictStability, incremental, size, locks } = req.body
+  const { routes, strictStability, incremental, size, locks, solver } = req.body
+  const usePp128 = solver === "pp128"
 
   if (!routes || typeof routes !== "object") {
     return res.status(400).json({ error: "No routes provided" })
@@ -967,15 +1211,112 @@ app.post("/api/process-routes", (req, res) => {
     }
   }
 
+  // pp128 requires 8×8 (64 ports)
+  if (usePp128 && currentSize !== 8) {
+    return res.status(400).json({ error: "pp128 solver requires 8×8 crossbar size" })
+  }
+
   // Check if router binary exists
-  if (!fs.existsSync(ROUTER_PATH)) {
-    return res.status(500).json({ error: "Router binary not found" })
+  const solverPath = usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH
+  if (!fs.existsSync(solverPath)) {
+    return res.status(500).json({ error: `${usePp128 ? "pp128" : "Router"} binary not found` })
   }
 
   if (activeRun && activeRun.status === "running") {
     return res.status(409).json({ error: "Solver already running" })
   }
 
+  // Handle pp128 solver
+  if (usePp128) {
+    // Convert routes object to pp128 format (0-based)
+    const pp128Routes = new Array(64).fill(-1)
+    for (const [inputId, outputs] of Object.entries(routes)) {
+      if (!Array.isArray(outputs)) continue
+      const zeroBasedInput = parseInt(inputId, 10) - 1
+      for (const output of outputs) {
+        if (output > 0 && output <= 64) {
+          pp128Routes[output - 1] = zeroBasedInput
+        }
+      }
+    }
+
+    const pp128Input = { routes: pp128Routes }
+    const tmpPp128Input = path.join(__dirname, ".tmp_pp128_input.json")
+
+    try {
+      fs.writeFileSync(tmpPp128Input, JSON.stringify(pp128Input))
+    } catch (err) {
+      return res.status(500).json({ error: `Failed to write pp128 input: ${err.message}` })
+    }
+
+    const child = spawn(PP128_SOLVER_PATH, [tmpPp128Input])
+    const run = beginRun(child, [tmpPp128Input])
+
+    if (!run) {
+      child.kill()
+      return res.status(409).json({ error: "Solver already running" })
+    }
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr.on("data", (data) => {
+      stderr += data.toString()
+    })
+
+    child.on("close", (code) => {
+      if (run.cancelled) {
+        finishRun(run)
+        return res.status(499).json({ error: "Run cancelled" })
+      }
+
+      if (code !== 0) {
+        finishRun(run)
+        return res.status(500).json({ error: `pp128 solver exited with code ${code}: ${stderr}` })
+      }
+
+      try {
+        // Strip any leading separator lines before JSON
+        const jsonStart = stdout.indexOf('{')
+        if (jsonStart === -1) {
+          finishRun(run)
+          return res.status(500).json({ error: "No JSON found in pp128 output" })
+        }
+        const pp128Output = JSON.parse(stdout.slice(jsonStart))
+
+        if (!pp128Output.success) {
+          finishRun(run)
+          return res.status(500).json({ error: pp128Output.error || "pp128 solver failed to find solution" })
+        }
+
+        // Convert pp128 output to clos2me state format
+        const state = convertPp128OutputToState(pp128Output, pp128Input)
+
+        // Parse logs from pp128 (minimal for now)
+        const solverLog = [{
+          level: 'summary',
+          type: 'success',
+          message: `pp128 solver completed in ${pp128Output.solve_ms}ms`,
+          timestamp: new Date().toISOString()
+        }]
+
+        lastState = state
+        finishRun(run)
+        return res.json({ ...state, solverLog })
+      } catch (err) {
+        finishRun(run)
+        return res.status(500).json({ error: `Failed to parse pp128 output: ${err.message}` })
+      }
+    })
+
+    return
+  }
+
+  // Standard clos_mult_router path
   // Convert routes object to route file format
   // Format: input.output1.output2.output3...
   const lines = []

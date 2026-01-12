@@ -180,6 +180,81 @@ export default function App() {
   const [crossbarSize, setCrossbarSize] = useState(10)
   const [sizeInput, setSizeInput] = useState("10")
 
+  // Solver selection: "clos" (clos_mult_router) or "pp128" (pp128_solver)
+  type SolverType = "clos" | "pp128"
+  const [solver, setSolver] = useState<SolverType>("clos")
+
+  // Handle solver change - pp128 requires 8×8 crossbar, then re-solve
+  const handleSolverChange = async (newSolver: SolverType) => {
+    setSolver(newSolver)
+
+    // pp128 requires 8×8
+    let effectiveSize = crossbarSize
+    if (newSolver === "pp128" && crossbarSize !== 8) {
+      await handleSizeChange(8)
+      effectiveSize = 8
+    }
+
+    // Re-run solver with current routes if we have state
+    if (state) {
+      const currentRoutes = buildRoutesFromState(state)
+      if (Object.keys(currentRoutes).length > 0) {
+        setError(null)
+        cancelRequestedRef.current = false
+        setRunSummary(null)
+        setLoading(true)
+        setSolverRunning(true)
+        setSolverLog([])
+        setFabricSummary(null)
+
+        const controller = new AbortController()
+        runAbortRef.current = controller
+
+        try {
+          const res = await fetch("/api/process-routes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              routes: currentRoutes,
+              strictStability,
+              incremental,
+              locks: buildLocksPayload(locksByInput),
+              solver: newSolver,
+              size: effectiveSize
+            })
+          })
+
+          if (!res.ok) {
+            const err = await res.json()
+            throw new Error(err.error || "Failed to re-solve with new solver")
+          }
+
+          const json = await res.json()
+          const parsed = solverResponseSchema.parse(json)
+          setState(parsed)
+
+          if (parsed.solverLog) {
+            const { entries, fabricSummary: summary } = extractFabricSummary(parsed.solverLog)
+            setSolverLog(entries)
+            setFabricSummary(summary)
+          }
+        } catch (e) {
+          if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
+            return
+          }
+          setError(e instanceof Error ? e.message : "Failed to re-solve")
+        } finally {
+          if (runAbortRef.current === controller) {
+            runAbortRef.current = null
+          }
+          setLoading(false)
+          setSolverRunning(false)
+        }
+      }
+    }
+  }
+
   // Relay mode - toggle with 'c' key
   const [relayMode, setRelayMode] = useState(false)
   const [showFirmwareFills, setShowFirmwareFills] = useState(false)
@@ -495,7 +570,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput) })
+        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput), solver })
       })
 
       if (!res.ok) {
@@ -560,7 +635,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput) })
+        body: JSON.stringify({ routes: newRoutes, strictStability, incremental, locks: buildLocksPayload(locksByInput), solver })
       })
 
       if (!res.ok) {
@@ -812,7 +887,8 @@ export default function App() {
           strictStability,
           incremental,
           locks: buildLocksPayload(locksByInput),
-          size: fileSize
+          size: fileSize,
+          solver
         })
       })
 
@@ -883,7 +959,7 @@ export default function App() {
     }
 
     // Use SSE for streaming solver output
-    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}&incremental=${incremental}`
+    const url = `/api/process-stream?filename=${encodeURIComponent(filename)}&size=${fileSize}&incremental=${incremental}&solver=${solver}`
     const eventSource = new EventSource(url)
     eventSourceRef.current = eventSource
 
@@ -1400,7 +1476,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ routes: routesPayload, strictStability, incremental, locks: locksPayload })
+        body: JSON.stringify({ routes: routesPayload, strictStability, incremental, locks: locksPayload, solver })
       })
 
       if (!res.ok) {
@@ -1532,6 +1608,15 @@ export default function App() {
             [C] Relay Mode
           </div>
         )}
+        <select
+          className="solverSelect"
+          value={solver}
+          onChange={e => handleSolverChange(e.target.value as SolverType)}
+          disabled={loading || solverRunning}
+        >
+          <option value="clos">clos_mult_router</option>
+          <option value="pp128">pp128_solver (8×8)</option>
+        </select>
         <label className="stabilityToggle">
           <input
             type="checkbox"
