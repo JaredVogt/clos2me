@@ -26,6 +26,7 @@ const ROUTES_DIR = path.join(__dirname, "public", "routes")
 const STATES_DIR = path.join(__dirname, "public", "states")
 const ROUTER_PATH = path.join(__dirname, "..", "clos_mult_router")
 const PP128_SOLVER_PATH = path.resolve(process.env.HOME, "projects", "pp128-fw", "comparison", "pp128_solver")
+const CLOS_V2_SOLVER_PATH = path.resolve(process.env.HOME, "projects", "pp_clos_solver_v2", "bin", "clos_solver")
 
 // Cache last fabric state for stability preservation
 let lastState = null
@@ -327,6 +328,121 @@ function convertPp128OutputToState(pp128Output, inputRoutes) {
     state.s2_to_s3[spine][egressBlock] = input1
 
     // Record trunk ownership in s1_to_s2 (ingress block -> spine)
+    state.s1_to_s2[ingressBlock][spine] = input1
+  }
+
+  return state
+}
+
+// ============================================================================
+// clos_v2 solver conversion functions
+// ============================================================================
+
+// Parse route file text to routes object format
+// Route file format: "input.output" or "input.output1.output2" per line (1-based)
+// Returns: { inputId: [outputId, ...] } (1-based)
+function parseRoutesTextToObject(routeText) {
+  const routes = {}
+  const lines = routeText.split(/\r?\n/)
+
+  for (const rawLine of lines) {
+    const line = rawLine.split('#')[0].trim()
+    if (!line) continue
+
+    const parts = line.split('.').map(p => p.trim()).filter(Boolean)
+    if (parts.length < 2) continue
+
+    const inputId = parseInt(parts[0], 10)
+    if (!Number.isFinite(inputId) || inputId <= 0) continue
+
+    if (!routes[inputId]) routes[inputId] = []
+
+    for (let i = 1; i < parts.length; i++) {
+      const outputId = parseInt(parts[i], 10)
+      if (Number.isFinite(outputId) && outputId > 0) {
+        if (!routes[inputId].includes(outputId)) {
+          routes[inputId].push(outputId)
+        }
+      }
+    }
+  }
+
+  return routes
+}
+
+// Convert routes object to clos_v2 format (0-based JSON array)
+// Input: routes object { inputId: [outputId, ...] } (1-based)
+// Output: array where array[output0] = input0, -1 for unconnected
+function parseRoutesToClosV2Format(routes, size) {
+  const totalPorts = size * size
+  const routeArray = new Array(totalPorts).fill(-1)
+
+  for (const [inputIdStr, outputs] of Object.entries(routes)) {
+    if (!Array.isArray(outputs)) continue
+    const zeroBasedInput = parseInt(inputIdStr, 10) - 1
+
+    for (const output of outputs) {
+      if (output > 0 && output <= totalPorts) {
+        routeArray[output - 1] = zeroBasedInput
+      }
+    }
+  }
+
+  return routeArray
+}
+
+// Convert clos_v2 solver output to clos2me state format
+// clos_v2 output: { in: [...], mid: [...], out: [...] } (size*size elements each)
+// clos2me state: { N, TOTAL_BLOCKS, MAX_PORTS, s1_to_s2, s2_to_s3, s3_port_owner, s3_port_spine, ... }
+function convertClosV2OutputToState(closV2Output, inputRoutes, size) {
+  const N = size
+  const TOTAL_BLOCKS = N
+  const MAX_PORTS = N * N
+
+  const state = {
+    version: 1,
+    N,
+    TOTAL_BLOCKS,
+    MAX_PORTS,
+    s1_to_s2: Array.from({ length: TOTAL_BLOCKS }, () => Array(N).fill(0)),
+    s2_to_s3: Array.from({ length: N }, () => Array(TOTAL_BLOCKS).fill(0)),
+    s3_port_owner: Array(MAX_PORTS + 1).fill(0),
+    s3_port_spine: Array(MAX_PORTS + 1).fill(-1),
+    desired_owner: Array(MAX_PORTS + 1).fill(0),
+    solve_ms: closV2Output.solve_ms || 0,
+    solve_total_ms: closV2Output.solve_ms || 0,
+    solve_nodes: 0,
+    solve_nodes_total: 0,
+    repack_count: 1,
+    stability_changes: 0,
+    strict_stability: false,
+    incremental: false,
+    lock_conflicts: []
+  }
+
+  // closV2Output.out[output] = egress layer input index
+  // spine = egress_layer_input % N
+  const { out: outsArray } = closV2Output
+
+  for (let output0 = 0; output0 < MAX_PORTS; output0++) {
+    const input0 = inputRoutes[output0]
+    if (input0 < 0) continue
+
+    const input1 = input0 + 1
+    const output1 = output0 + 1
+
+    state.s3_port_owner[output1] = input1
+    state.desired_owner[output1] = input1
+
+    const egressLayerInput = outsArray[output0]
+    if (egressLayerInput < 0) continue
+
+    const spine = egressLayerInput % N
+    const egressBlock = Math.floor(output0 / N)
+    const ingressBlock = Math.floor(input0 / N)
+
+    state.s3_port_spine[output1] = spine
+    state.s2_to_s3[spine][egressBlock] = input1
     state.s1_to_s2[ingressBlock][spine] = input1
   }
 
@@ -1053,6 +1169,7 @@ app.post("/api/process", async (req, res) => {
 app.get("/api/process-stream", (req, res) => {
   const { filename, size, incremental, solver } = req.query
   const usePp128 = solver === "pp128"
+  const useClosV2 = solver === "clos_v2"
 
   if (!filename) {
     return res.status(400).json({ error: "No filename provided" })
@@ -1082,9 +1199,10 @@ app.get("/api/process-stream", (req, res) => {
     return res.status(404).json({ error: "Route file not found" })
   }
 
-  const solverPath = usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH
+  const solverPath = useClosV2 ? CLOS_V2_SOLVER_PATH : (usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH)
   if (!fs.existsSync(solverPath)) {
-    return res.status(500).json({ error: `${usePp128 ? "pp128" : "Router"} binary not found at ${solverPath}` })
+    const solverName = useClosV2 ? "clos_v2" : (usePp128 ? "pp128" : "Router")
+    return res.status(500).json({ error: `${solverName} binary not found at ${solverPath}` })
   }
 
   // Set up SSE headers
@@ -1248,6 +1366,135 @@ app.get("/api/process-stream", (req, res) => {
     return
   }
 
+  // Handle clos_v2 solver (stdin-based)
+  if (useClosV2) {
+    // Read route file and convert to clos_v2 format
+    let routeText
+    try {
+      routeText = fs.readFileSync(effectiveRoutePath, "utf-8")
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to read route file: ${err.message}` })}\n\n`)
+      res.end()
+      return
+    }
+
+    // Parse routes and convert to clos_v2 format
+    const routesObj = parseRoutesTextToObject(routeText)
+    const closV2Input = parseRoutesToClosV2Format(routesObj, currentSize)
+    const stdinData = JSON.stringify(closV2Input)
+
+    // Spawn clos_v2 solver with stdin
+    const child = spawn(CLOS_V2_SOLVER_PATH, ['--size', String(currentSize)])
+    const run = beginRun(child, [])
+
+    if (!run) {
+      child.kill()
+      res.write(`data: ${JSON.stringify({ type: "complete", error: "Solver already running" })}\n\n`)
+      res.end()
+      return
+    }
+
+    run.onCancel = () => {
+      try {
+        const summary = buildRunSummary(run)
+        res.write(`data: ${JSON.stringify({ type: "complete", error: "Run cancelled", summary })}\n\n`)
+        res.end()
+      } catch (err) {
+        // ignore write errors on cancel
+      }
+    }
+
+    let stdoutBuffer = ""
+    let stderrBuffer = ""
+
+    child.stdout.on("data", (data) => {
+      stdoutBuffer += data.toString()
+    })
+
+    child.stderr.on("data", (data) => {
+      stderrBuffer += data.toString()
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ type: "error", message: data.toString() })}\n\n`)
+      }
+    })
+
+    // Write input to stdin and close
+    child.stdin.write(stdinData)
+    child.stdin.end()
+
+    child.on("close", (code) => {
+      const canWrite = !res.writableEnded
+      const summary = buildRunSummary(run)
+      const cancelled = run.cancelled
+
+      if (cancelled) {
+        finishRun(run)
+        if (canWrite) res.end()
+        return
+      }
+
+      // Exit code 1 = invalid params, 2 = routing failed
+      if (code === 1) {
+        finishRun(run)
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `clos_v2: Invalid parameters: ${stderrBuffer}` })}\n\n`)
+          res.end()
+        }
+        return
+      }
+
+      if (code === 2) {
+        finishRun(run)
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `clos_v2: Routing failed - no valid solution found` })}\n\n`)
+          res.end()
+        }
+        return
+      }
+
+      if (code !== 0) {
+        finishRun(run)
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `clos_v2 solver exited with code ${code}: ${stderrBuffer}` })}\n\n`)
+          res.end()
+        }
+        return
+      }
+
+      try {
+        // Parse JSON output - strip separator line before JSON
+        const jsonStart = stdoutBuffer.indexOf('{')
+        if (jsonStart === -1) {
+          throw new Error("No JSON found in clos_v2 output")
+        }
+        const closV2Output = JSON.parse(stdoutBuffer.slice(jsonStart))
+
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "log", line: `[S] clos_v2 solver completed` })}\n\n`)
+        }
+
+        const state = convertClosV2OutputToState(closV2Output, closV2Input, currentSize)
+        lastState = state
+
+        if (canWrite) {
+          const response = { type: "complete", state, summary }
+          if (chainInputs) response.chainInputs = chainInputs
+          res.write(`data: ${JSON.stringify(response)}\n\n`)
+          res.end()
+        }
+      } catch (err) {
+        if (canWrite) {
+          res.write(`data: ${JSON.stringify({ type: "complete", error: `Failed to parse clos_v2 output: ${err.message}` })}\n\n`)
+          res.end()
+        }
+      }
+
+      finishRun(run)
+    })
+
+    return
+  }
+
   // Standard clos_mult_router path
   // Create temp files
   const tmpJson = path.join(__dirname, ".tmp_state.json")
@@ -1374,6 +1621,7 @@ app.get("/api/process-stream", (req, res) => {
 app.post("/api/process-routes", (req, res) => {
   const { routes, strictStability, incremental, size, locks, solver } = req.body
   const usePp128 = solver === "pp128"
+  const useClosV2 = solver === "clos_v2"
 
   if (!routes || typeof routes !== "object") {
     return res.status(400).json({ error: "No routes provided" })
@@ -1392,10 +1640,11 @@ app.post("/api/process-routes", (req, res) => {
     return res.status(400).json({ error: "pp128 solver requires 8×8 crossbar size" })
   }
 
-  // Check if router binary exists
-  const solverPath = usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH
+  // Check if solver binary exists
+  const solverPath = useClosV2 ? CLOS_V2_SOLVER_PATH : (usePp128 ? PP128_SOLVER_PATH : ROUTER_PATH)
   if (!fs.existsSync(solverPath)) {
-    return res.status(500).json({ error: `${usePp128 ? "pp128" : "Router"} binary not found` })
+    const solverName = useClosV2 ? "clos_v2" : (usePp128 ? "pp128" : "Router")
+    return res.status(500).json({ error: `${solverName} binary not found` })
   }
 
   if (activeRun && activeRun.status === "running") {
@@ -1486,6 +1735,85 @@ app.post("/api/process-routes", (req, res) => {
       } catch (err) {
         finishRun(run)
         return res.status(500).json({ error: `Failed to parse pp128 output: ${err.message}` })
+      }
+    })
+
+    return
+  }
+
+  // Handle clos_v2 solver (stdin-based)
+  if (useClosV2) {
+    const closV2Input = parseRoutesToClosV2Format(routes, currentSize)
+    const stdinData = JSON.stringify(closV2Input)
+
+    const child = spawn(CLOS_V2_SOLVER_PATH, ['--size', String(currentSize)])
+    const run = beginRun(child, [])
+
+    if (!run) {
+      child.kill()
+      return res.status(409).json({ error: "Solver already running" })
+    }
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr.on("data", (data) => {
+      stderr += data.toString()
+    })
+
+    // Write input to stdin and close
+    child.stdin.write(stdinData)
+    child.stdin.end()
+
+    child.on("close", (code) => {
+      if (run.cancelled) {
+        finishRun(run)
+        return res.status(499).json({ error: "Run cancelled" })
+      }
+
+      // Exit code 1 = invalid params, 2 = routing failed
+      if (code === 1) {
+        finishRun(run)
+        return res.status(400).json({ error: `clos_v2: Invalid parameters: ${stderr}` })
+      }
+
+      if (code === 2) {
+        finishRun(run)
+        return res.status(500).json({ error: "clos_v2: Routing failed - no valid solution found" })
+      }
+
+      if (code !== 0) {
+        finishRun(run)
+        return res.status(500).json({ error: `clos_v2 solver exited with code ${code}: ${stderr}` })
+      }
+
+      try {
+        const jsonStart = stdout.indexOf('{')
+        if (jsonStart === -1) {
+          finishRun(run)
+          return res.status(500).json({ error: "No JSON found in clos_v2 output" })
+        }
+        const closV2Output = JSON.parse(stdout.slice(jsonStart))
+
+        const state = convertClosV2OutputToState(closV2Output, closV2Input, currentSize)
+
+        const solverLog = [{
+          level: 'summary',
+          type: 'success',
+          message: `clos_v2 solver completed`,
+          timestamp: new Date().toISOString()
+        }]
+
+        lastState = state
+        finishRun(run)
+        return res.json({ ...state, solverLog })
+      } catch (err) {
+        finishRun(run)
+        return res.status(500).json({ error: `Failed to parse clos_v2 output: ${err.message}` })
       }
     })
 

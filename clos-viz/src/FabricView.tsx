@@ -9,10 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 
-type SolverType = "clos" | "pp128"
+type SolverType = "clos" | "pp128" | "clos_v2"
 
 type Props = {
-  state: FabricState
+  state: FabricState | null
   selectedInput: number | null
   highlightInput?: number | null
   highlightMode?: 'normal' | 'locked'
@@ -124,6 +124,7 @@ export function FabricView({
 
   // Identify multicast inputs (inputs with more than 1 output)
   const multInputs = useMemo(() => {
+    if (!state) return new Set<number>()
     const outputCounts: Record<number, number> = {}
     for (let port = 1; port <= state.MAX_PORTS; port++) {
       const owner = state.s3_port_owner[port]
@@ -185,7 +186,7 @@ export function FabricView({
   } | null>(null)
 
   const firmwareState = useMemo(() => {
-    if (!showFirmwareFills) return null
+    if (!showFirmwareFills || !state) return null
 
     const s1FilledOwners: number[][] = Array.from({ length: state.TOTAL_BLOCKS }, () => Array(state.N).fill(0))
     const s1OutToInIdx: number[][] = Array.from({ length: state.TOTAL_BLOCKS }, () => Array(state.N).fill(-1))
@@ -277,6 +278,7 @@ export function FabricView({
 
   // Build crossbar data for all 30 switches
   const crossbars = useMemo(() => {
+    if (!state) return { ingress: [], spine: [], egress: [] }
     const result: {
       ingress: Array<{
         title: string
@@ -506,6 +508,7 @@ export function FabricView({
 
   // Build inter-column cables
   const cables = useMemo(() => {
+    if (!state) return []
     const list: Cable[] = []
 
     if (firmwareState) {
@@ -579,7 +582,7 @@ export function FabricView({
 
   // Compute relay data for hovered crossbar
   const relayData = useMemo(() => {
-    if (!hoveredCrossbar) return null
+    if (!hoveredCrossbar || !state) return null
 
     const { column, row } = hoveredCrossbar
 
@@ -793,8 +796,9 @@ export function FabricView({
                 <SelectValue placeholder="Select solver" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="clos">clos_mult_router</SelectItem>
-                <SelectItem value="pp128">pp128_solver (8×8)</SelectItem>
+                <SelectItem value="clos">Closer2God</SelectItem>
+                <SelectItem value="pp128">Original (size=8)</SelectItem>
+                <SelectItem value="clos_v2">Original (size=n)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -843,7 +847,8 @@ export function FabricView({
           </div>
         </div>
 
-        {/* Scrollable crosspoints */}
+        {/* Scrollable crosspoints - only render when state exists */}
+        {state ? (
         <div className="fabricScrollable">
           <div className="fabricGrid" ref={containerRef}>
             {/* Inter-column cables SVG */}
@@ -978,6 +983,9 @@ export function FabricView({
             )}
           </div>
         </div>
+        ) : (
+          <div className="empty">Select a route file from the sidebar to visualize the fabric</div>
+        )}
       </div>
     </TooltipProvider>
   )

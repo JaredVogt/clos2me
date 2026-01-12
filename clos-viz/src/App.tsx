@@ -189,8 +189,8 @@ export default function App() {
   const [crossbarSize, setCrossbarSize] = useState(10)
   const [sizeInput, setSizeInput] = useState("10")
 
-  // Solver selection: "clos" (clos_mult_router) or "pp128" (pp128_solver)
-  type SolverType = "clos" | "pp128"
+  // Solver selection: "clos" (clos_mult_router), "pp128" (pp128_solver), or "clos_v2" (pp_clos_solver_v2)
+  type SolverType = "clos" | "pp128" | "clos_v2"
   const [solver, setSolver] = useState<SolverType>("clos")
 
   // Handle solver change - pp128 requires 8×8 crossbar, then re-solve
@@ -2299,35 +2299,31 @@ export default function App() {
 
         <main className="main">
           {loading && <div className="loading">Processing...</div>}
-          {state ? (
-            <FabricView
-              state={state}
-              selectedInput={selectedInput}
-              highlightInput={highlightInput}
-              highlightMode={highlightMode}
-              locksByInput={locksByInput}
-              onSelectInput={id => setSelectedInput(id)}
-              onHoverInput={handleHoverInput}
-              onRouteClick={handleRouteClick}
-              pendingInput={pendingInput}
-              pendingOutputs={pendingOutputs}
-              activeInputCount={inputs.length}
-              activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
-              relayMode={relayMode}
-              showFirmwareFills={showFirmwareFills}
-              onShowFirmwareFillsChange={setShowFirmwareFills}
-              showMults={showMults}
-              onShowMultsChange={setShowMults}
-              solver={solver}
-              onSolverChange={handleSolverChange}
-              loading={loading}
-              solverRunning={solverRunning}
-              chainHighlightInputs={chainHighlightInputs}
-              onChainHover={handleChainHover}
-            />
-          ) : (
-            <div className="empty">Select a route file from the sidebar to visualize the fabric</div>
-          )}
+          <FabricView
+            state={state}
+            selectedInput={selectedInput}
+            highlightInput={highlightInput}
+            highlightMode={highlightMode}
+            locksByInput={locksByInput}
+            onSelectInput={id => setSelectedInput(id)}
+            onHoverInput={handleHoverInput}
+            onRouteClick={handleRouteClick}
+            pendingInput={pendingInput}
+            pendingOutputs={pendingOutputs}
+            activeInputCount={inputs.length}
+            activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
+            relayMode={relayMode}
+            showFirmwareFills={showFirmwareFills}
+            onShowFirmwareFillsChange={setShowFirmwareFills}
+            showMults={showMults}
+            onShowMultsChange={setShowMults}
+            solver={solver}
+            onSolverChange={handleSolverChange}
+            loading={loading}
+            solverRunning={solverRunning}
+            chainHighlightInputs={chainHighlightInputs}
+            onChainHover={handleChainHover}
+          />
         </main>
 
         <div
