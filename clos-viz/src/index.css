@@ -756,6 +756,11 @@
   stroke-width: 2.5;
 }
 
+.interCable.chainHighlight {
+  stroke: #f97316;
+  stroke-width: 2.5;
+}
+
 .interCable.locked {
   stroke: #c00020;
   stroke-width: 2.8;
@@ -1211,4 +1216,151 @@
 .legendDot.treebarSelected {
   border: 2px solid #4ade80;
   background: transparent;
+}
+
+/* Shortcuts Dialog */
+.shortcutsOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shortcutsDialog {
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  max-width: 550px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.shortcutsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.shortcutsHeader h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.shortcutsClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  color: #666;
+  padding: 0;
+  line-height: 1;
+}
+
+.shortcutsClose:hover {
+  color: #1a1a1a;
+}
+
+.shortcutsBody {
+  padding: 16px 20px;
+}
+
+.shortcutsSection {
+  margin-bottom: 20px;
+}
+
+.shortcutsSection:last-child {
+  margin-bottom: 0;
+}
+
+.shortcutsSection h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+}
+
+.shortcutsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.shortcutsTable th,
+.shortcutsTable td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.shortcutsTable th {
+  font-weight: 600;
+  color: #666;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.shortcutsTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.shortcutsTable kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 12px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.shortcutsFooter {
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.shortcutsHint {
+  font-size: 12px;
+  color: #888;
+}
+
+.shortcutsHint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 11px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+}
+
+/* Chain highlighting for PropatchMD files (Option + hover) */
+.crossbarPort.chainHighlight .portDot {
+  background: #f97316;
+  border-color: #ea580c;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.6);
+}
+
+.crossbarPath.chainHighlight {
+  stroke: #f97316;
+  stroke-width: 3;
+}
+
+/* Inter-crossbar cables chain highlighting */
+.cable.chainHighlight {
+  stroke: #f97316;
+  stroke-width: 3;
 }

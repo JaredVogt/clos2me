@@ -23,6 +23,9 @@ type Props = {
   onRouteClick?: (label: string, isInput: boolean, event: React.MouseEvent) => void
   pendingInput?: number | null
   pendingOutputs?: number[]
+  // Chain highlighting for PropatchMD files
+  chainHighlightInputs?: number[]
+  onChainHover?: (inputId: number | null, event?: React.MouseEvent) => void
 }
 
 type PortPos = { x: number; y: number }
@@ -46,7 +49,9 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
     inLockStates = [],
     outLockStates = [],
     pendingInput,
-    pendingOutputs = []
+    pendingOutputs = [],
+    chainHighlightInputs = [],
+    onChainHover
   },
   ref
 ) {
@@ -117,12 +122,19 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
             const lockState = inLockStates[i] ?? 'none'
             const isLocked = lockState === 'locked'
             const isRelated = lockState === 'related'
+            // Chain highlight: check if any path at this port belongs to a highlighted chain
+            const isChainHighlight = chainHighlightInputs.length > 0 &&
+              paths.some(p => p.inIdx === i && chainHighlightInputs.includes(p.owner))
+
+            if (chainHighlightInputs.length > 0 && i === 0) {
+              console.log(`[debug] Crossbar chainHighlightInputs:`, chainHighlightInputs, `paths owners:`, paths.map(p => p.owner))
+            }
 
             return (
               <div
                 key={i}
                 ref={el => { inPortRefs.current[i] = el }}
-                className={`crossbarPort ${isPending ? "pending" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
+                className={`crossbarPort ${isPending ? "pending" : isChainHighlight ? "chainHighlight" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
                 onClick={(e) => {
                   if (e.altKey) {
                     // Option-click: highlight/select route
@@ -133,11 +145,17 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                     onRouteClick(label, true, e)
                   }
                 }}
-                onMouseEnter={() => {
+                onMouseEnter={(e) => {
                   const path = paths.find(p => p.inIdx === i)
-                  if (path && path.owner > 0 && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                  if (path && path.owner > 0) {
+                    if (onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                    if (onChainHover) onChainHover(path.owner, e)
+                  }
                 }}
-                onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
+                onMouseLeave={(e) => {
+                  if (onHoverInput) onHoverInput(null, false)
+                  if (onChainHover) onChainHover(null, e)
+                }}
                 title={label}
               >
                 <span className="portDot" />
@@ -157,6 +175,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
 
               const isActive = p.owner === highlightInput
               const isLockedActive = isActive && highlightMode === 'locked'
+              const isChainHighlight = chainHighlightInputs.includes(p.owner)
 
               // Draw Bezier curve
               const midX = (from.x + to.x) / 2
@@ -165,7 +184,7 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                 <path
                   key={idx}
                   d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
-                  className={`crossbarPath ${p.isFiller ? "filler" : ""} ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
+                  className={`crossbarPath ${p.isFiller ? "filler" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
                   onClick={() => {
                     if (p.owner > 0) onSelectInput(p.owner)
                   }}
@@ -184,12 +203,15 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
             const lockState = outLockStates[i] ?? 'none'
             const isLocked = lockState === 'locked'
             const isRelated = lockState === 'related'
+            // Chain highlight: check if any path at this port belongs to a highlighted chain
+            const isChainHighlight = chainHighlightInputs.length > 0 &&
+              paths.some(p => p.outIdx === i && chainHighlightInputs.includes(p.owner))
 
             return (
               <div
                 key={i}
                 ref={el => { outPortRefs.current[i] = el }}
-                className={`crossbarPort ${isPendingOut ? "pendingOut" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
+                className={`crossbarPort ${isPendingOut ? "pendingOut" : isChainHighlight ? "chainHighlight" : isActive ? "active" : isUsed ? "used" : ""} ${isLocked ? "locked" : isRelated ? "related" : ""}`}
                 onClick={(e) => {
                   console.log(`[debug] OUT port click: label=${label}, altKey=${e.altKey}, shiftKey=${e.shiftKey}, onRouteClick=${!!onRouteClick}`)
                   if (e.altKey) {
@@ -201,11 +223,17 @@ export const Crossbar = forwardRef<CrossbarRef, Props>(function Crossbar(
                     onRouteClick(label, false, e)
                   }
                 }}
-                onMouseEnter={() => {
+                onMouseEnter={(e) => {
                   const path = paths.find(p => p.outIdx === i)
-                  if (path && path.owner > 0 && onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                  if (path && path.owner > 0) {
+                    if (onHoverInput) onHoverInput(path.owner, lockState !== 'none')
+                    if (onChainHover) onChainHover(path.owner, e)
+                  }
                 }}
-                onMouseLeave={() => onHoverInput && onHoverInput(null, false)}
+                onMouseLeave={(e) => {
+                  if (onHoverInput) onHoverInput(null, false)
+                  if (onChainHover) onChainHover(null, e)
+                }}
                 title={label}
               >
                 <span className="portText">{label}</span>

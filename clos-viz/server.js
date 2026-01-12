@@ -395,6 +395,75 @@ function parsePropatchsToRoutes(data) {
     .join('\n')
 }
 
+// Parse PropatchMD and return both routes AND chain mappings for highlighting
+// chainInputs maps chainIndex → array of input IDs belonging to that chain
+function parsePropatchsWithChains(data) {
+  const routes = {}  // input -> Set of outputs
+  const chainInputs = {}  // chainIndex -> [inputIds]
+  let chainIndex = 0
+
+  for (const chain of Object.values(data.chains || {})) {
+    // Skip inactive chains (cond.active === false)
+    if (chain.cond?.active === false) continue
+
+    const chainInputsList = []
+
+    for (const lane of chain.lanes || []) {
+      const cells = lane.cells || []
+
+      // Extract port info from each cell
+      const cellPorts = cells.map(cell => {
+        let fromPort = null
+        let toPort = null
+
+        for (const item of cell.items || []) {
+          const L = item.L
+          if (L && L.L) {
+            if (L.L.from && L.L.from.port !== undefined) {
+              fromPort = L.L.from.port
+            }
+            if (L.L.to && L.L.to.port !== undefined) {
+              toPort = L.L.to.port
+            }
+          }
+        }
+        return { fromPort, toPort }
+      })
+
+      // Generate routes between consecutive cells
+      for (let i = 0; i < cellPorts.length - 1; i++) {
+        const currFrom = cellPorts[i].fromPort
+        const nextTo = cellPorts[i + 1].toPort
+
+        if (currFrom !== null && nextTo !== null) {
+          const input = currFrom + 1   // 0-based → 1-based
+          const output = nextTo + 1
+          if (!routes[input]) routes[input] = new Set()
+          routes[input].add(output)
+
+          // Track this input as belonging to this chain
+          if (!chainInputsList.includes(input)) {
+            chainInputsList.push(input)
+          }
+        }
+      }
+    }
+
+    // Only add chain if it has inputs
+    if (chainInputsList.length > 0) {
+      chainInputs[chainIndex++] = chainInputsList
+    }
+  }
+
+  // Convert to route text
+  const routeText = Object.entries(routes)
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    .map(([input, outputs]) => `${input}.${[...outputs].sort((a, b) => a - b).join('.')}`)
+    .join('\n')
+
+  return { routeText, chainInputs }
+}
+
 app.use(cors())
 app.use(express.json())
 
@@ -1033,15 +1102,19 @@ app.get("/api/process-stream", (req, res) => {
   // Clear locks when loading a file (but preserve lastState for delta tracking)
   lastLocks = []
 
-  // Convert propatchs files to route text format
+  // Convert propatchs files to route text format and extract chain mappings
   let effectiveRoutePath = routePath
+  let chainInputs = null  // Will be set for propatchs files
+  console.log(`[debug] filename='${filename}', endsWith .propatchs: ${filename.endsWith('.propatchs')}`)
   if (filename.endsWith('.propatchs')) {
     try {
       const contents = fs.readFileSync(routePath, "utf-8")
       const data = JSON.parse(contents)
-      const routeText = parsePropatchsToRoutes(data)
+      const parsed = parsePropatchsWithChains(data)
+      chainInputs = parsed.chainInputs
+      console.log(`[debug] chainInputs extracted from propatchs:`, JSON.stringify(chainInputs))
       const tmpPropatchs = path.join(__dirname, ".tmp_propatchs_routes.txt")
-      fs.writeFileSync(tmpPropatchs, routeText)
+      fs.writeFileSync(tmpPropatchs, parsed.routeText)
       effectiveRoutePath = tmpPropatchs
     } catch (err) {
       res.write(`data: ${JSON.stringify({ type: "complete", error: "Failed to convert propatchs: " + err.message })}\n\n`)
@@ -1157,7 +1230,9 @@ app.get("/api/process-stream", (req, res) => {
         lastState = state
 
         if (canWrite) {
-          res.write(`data: ${JSON.stringify({ type: "complete", state, summary })}\n\n`)
+          const response = { type: "complete", state, summary }
+          if (chainInputs) response.chainInputs = chainInputs
+          res.write(`data: ${JSON.stringify(response)}\n\n`)
           res.end()
         }
       } catch (err) {
@@ -1271,7 +1346,9 @@ app.get("/api/process-stream", (req, res) => {
 
       // Send the complete state
       if (canWrite) {
-        res.write(`data: ${JSON.stringify({ type: "complete", state, summary })}\n\n`)
+        const response = { type: "complete", state, summary }
+        if (chainInputs) response.chainInputs = chainInputs
+        res.write(`data: ${JSON.stringify(response)}\n\n`)
       }
     } catch (err) {
       if (canWrite) {

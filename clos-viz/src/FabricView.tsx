@@ -23,6 +23,9 @@ type Props = {
   // Relay mode
   relayMode?: boolean
   showFirmwareFills?: boolean
+  // Chain highlighting for PropatchMD files
+  chainHighlightInputs?: number[]
+  onChainHover?: (inputId: number | null, event?: React.MouseEvent) => void
 }
 
 type HoveredCrossbar = {
@@ -87,7 +90,9 @@ export function FabricView({
   activeInputCount,
   activeOutputCount,
   relayMode,
-  showFirmwareFills = false
+  showFirmwareFills = false,
+  chainHighlightInputs = [],
+  onChainHover
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -744,13 +749,14 @@ export function FabricView({
           {cablePositions.cables.map((c, idx) => {
             const isActive = c.owner === highlightInput
             const isLockedActive = isActive && highlightMode === 'locked'
+            const isChainHighlight = chainHighlightInputs.includes(c.owner)
             const midX = (c.x1 + c.x2) / 2
 
             return (
               <path
                 key={idx}
                 d={`M ${c.x1} ${c.y1} C ${midX} ${c.y1}, ${midX} ${c.y2}, ${c.x2} ${c.y2}`}
-                className={`interCable ${c.isFiller ? "filler" : ""} ${isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
+                className={`interCable ${c.isFiller ? "filler" : ""} ${isChainHighlight ? "chainHighlight" : isActive ? "active" : ""} ${isLockedActive ? "locked" : ""}`}
                 onClick={() => {
                   if (c.owner > 0) onSelectInput(c.owner)
                 }}
@@ -789,6 +795,8 @@ export function FabricView({
                 }
               } : undefined}
               pendingInput={pendingInput}
+              chainHighlightInputs={chainHighlightInputs}
+              onChainHover={onChainHover}
             />
           </div>
           <div
@@ -803,6 +811,8 @@ export function FabricView({
               highlightMode={highlightMode}
               onHoverInput={onHoverInput}
               onSelectInput={onSelectInput}
+              chainHighlightInputs={chainHighlightInputs}
+              onChainHover={onChainHover}
             />
           </div>
           <div
@@ -826,6 +836,8 @@ export function FabricView({
                 }
               } : undefined}
               pendingOutputs={pendingOutputs}
+              chainHighlightInputs={chainHighlightInputs}
+              onChainHover={onChainHover}
             />
           </div>
         </div>

@@ -3,6 +3,7 @@ import { fabricStateSchema, solverResponseSchema, type FabricState, type LogEntr
 import { deriveInputs } from "./derive"
 import { FabricView } from "./FabricView"
 import { LogPanel } from "./LogPanel"
+import { ShortcutsDialog } from "./ShortcutsDialog"
 import "./index.css"
 
 type LockMap = Record<number, Record<number, number>>
@@ -267,6 +268,13 @@ export default function App() {
   const [relayMode, setRelayMode] = useState(false)
   const [showFirmwareFills, setShowFirmwareFills] = useState(false)
 
+  // Shortcuts dialog - toggle with 'k' key
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
+
+  // Chain highlighting for PropatchMD files
+  const [chainInputs, setChainInputs] = useState<Record<number, number[]> | null>(null)
+  const [chainHighlightInputs, setChainHighlightInputs] = useState<number[]>([])
+
   // Solver log state
   const [solverLog, setSolverLog] = useState<LogEntry[]>([])
   const [fabricSummary, setFabricSummary] = useState<string | null>(null)
@@ -432,7 +440,7 @@ export default function App() {
       setLocksByInput(nextLocks)
     }
   }, [state, locksByInput])
-  // Keyboard shortcuts: ESC cancels route, C toggles relay mode
+  // Keyboard shortcuts: ESC cancels route, C toggles relay mode, K toggles shortcuts dialog
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Don't trigger if typing in an input
@@ -440,9 +448,13 @@ export default function App() {
         return
       }
 
-      if (e.key === 'Escape' && pendingInput !== null) {
-        setPendingInput(null)
-        setPendingOutputs([])
+      if (e.key === 'Escape') {
+        if (showShortcutsDialog) {
+          setShowShortcutsDialog(false)
+        } else if (pendingInput !== null) {
+          setPendingInput(null)
+          setPendingOutputs([])
+        }
       }
 
       if (e.key === 'c' || e.key === 'C') {
@@ -450,11 +462,17 @@ export default function App() {
         e.stopPropagation()
         setRelayMode(prev => !prev)
       }
+
+      if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault()
+        e.stopPropagation()
+        setShowShortcutsDialog(prev => !prev)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [pendingInput])
+  }, [pendingInput, showShortcutsDialog])
 
   // Handle log panel resize
   useEffect(() => {
@@ -1047,6 +1065,10 @@ export default function App() {
             setState(parsed)
             setSelectedInput(null)
           }
+          // Store chain inputs for PropatchMD files (for chain highlighting)
+          console.log(`[debug] chainInputs received from server:`, data.chainInputs)
+          setChainInputs(data.chainInputs || null)
+          setChainHighlightInputs([])
           setLoading(false)
           setSolverRunning(false)
         }
@@ -1607,6 +1629,26 @@ export default function App() {
     setHoveredInput(inputId)
     setHoveredFromLock(fromLock)
   }, [])
+
+  // Chain hover handler for PropatchMD files - highlights entire chain when Option key is held
+  const handleChainHover = useCallback((inputId: number | null, event?: React.MouseEvent) => {
+    console.log(`[debug] handleChainHover: inputId=${inputId}, altKey=${event?.altKey}, hasChainInputs=${!!chainInputs}`)
+    // Check altKey directly from the mouse event (works reliably on Mac)
+    if (!event?.altKey || !chainInputs || inputId === null) {
+      setChainHighlightInputs([])
+      return
+    }
+
+    // Find which chain this input belongs to
+    for (const [chainId, inputs] of Object.entries(chainInputs)) {
+      if (inputs.includes(inputId)) {
+        console.log(`[debug] Found input ${inputId} in chain ${chainId}, highlighting:`, inputs)
+        setChainHighlightInputs(inputs)
+        return
+      }
+    }
+    setChainHighlightInputs([])
+  }, [chainInputs])
 
   return (
     <div className="app">
@@ -2258,6 +2300,8 @@ export default function App() {
               activeOutputCount={inputs.reduce((sum, i) => sum + i.outputs.length, 0)}
               relayMode={relayMode}
               showFirmwareFills={showFirmwareFills}
+              chainHighlightInputs={chainHighlightInputs}
+              onChainHover={handleChainHover}
             />
           ) : (
             <div className="empty">Select a route file from the sidebar to visualize the fabric</div>
@@ -2280,6 +2324,10 @@ export default function App() {
           onClear={() => { setSolverLog([]); setFabricSummary(null); setRunSummary(null) }}
         />
       </div>
+
+      {showShortcutsDialog && (
+        <ShortcutsDialog onClose={() => setShowShortcutsDialog(false)} />
+      )}
     </div>
   )
 }
