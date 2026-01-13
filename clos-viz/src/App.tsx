@@ -135,8 +135,25 @@ const extractFabricSummary = (entries: LogEntry[]) => {
   return { entries: nextEntries, fabricSummary }
 }
 
+// Create an empty fabric state for a given crossbar size
+function createEmptyFabricState(size: number): FabricState {
+  const N = size
+  const TOTAL_BLOCKS = N
+  const MAX_PORTS = N * N
+  return {
+    version: 1,
+    N,
+    TOTAL_BLOCKS,
+    MAX_PORTS,
+    s1_to_s2: Array.from({ length: TOTAL_BLOCKS }, () => Array(N).fill(0)),
+    s2_to_s3: Array.from({ length: N }, () => Array(TOTAL_BLOCKS).fill(0)),
+    s3_port_owner: Array(MAX_PORTS + 1).fill(0),
+    s3_port_spine: Array(MAX_PORTS + 1).fill(-1),
+  }
+}
+
 export default function App() {
-  const [state, setState] = useState<FabricState | null>(null)
+  const [state, setState] = useState<FabricState | null>(createEmptyFabricState(8))
   const [selectedInput, setSelectedInput] = useState<number | null>(null)
   const [filter, setFilter] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -185,9 +202,9 @@ export default function App() {
   const [strictStability, setStrictStability] = useState(false)
   const [incremental, setIncremental] = useState(false)
 
-  // Crossbar size (default 10)
-  const [crossbarSize, setCrossbarSize] = useState(10)
-  const [sizeInput, setSizeInput] = useState("10")
+  // Crossbar size (default 8)
+  const [crossbarSize, setCrossbarSize] = useState(8)
+  const [sizeInput, setSizeInput] = useState("8")
 
   // Solver selection: "clos" (clos_mult_router), "pp128" (pp128_solver), or "clos_v2" (pp_clos_solver_v2)
   type SolverType = "clos" | "pp128" | "clos_v2"
@@ -260,6 +277,7 @@ export default function App() {
           if (e instanceof DOMException && e.name === "AbortError" && cancelRequestedRef.current) {
             return
           }
+          setState(null)  // Clear fabric on failure
           setError(e instanceof Error ? e.message : "Failed to re-solve")
         } finally {
           if (runAbortRef.current === controller) {
@@ -754,8 +772,8 @@ export default function App() {
 
       setCrossbarSize(newSize)
       setSizeInput(String(newSize))
-      // Clear state when size changes - user should reload a route file
-      setState(null)
+      // Initialize empty fabric when size changes
+      setState(createEmptyFabricState(newSize))
       setRoutes({})
       setSelectedInput(null)
       setSelectedRoute(null)
@@ -1068,6 +1086,7 @@ export default function App() {
           cancelRequestedRef.current = false
 
           if (data.error) {
+            setState(null)  // Clear fabric on failure
             setError(data.error)
           } else if (data.state) {
             const parsed = solverResponseSchema.parse(data.state)
@@ -1667,6 +1686,25 @@ export default function App() {
             clos2me - clos visualizer
             <span className="buildInfo">{__GIT_BRANCH__} @ {__GIT_COMMIT__}</span>
           </div>
+
+          {/* Route status message - inline in topbar to prevent layout shift */}
+          {pendingInput !== null && (
+            <div className="routeStatusInline">
+              Creating route from <strong>Input {pendingInput}</strong>
+              {pendingOutputs.length > 0 && (
+                <> → Outputs: {pendingOutputs.join(", ")}</>
+              )}
+              <span className="routeHint">
+                {pendingOutputs.length === 0
+                  ? " (Click output to route, Shift-click to add multicast)"
+                  : " (Shift-click to add more outputs)"}
+              </span>
+              <button className="cancelBtn" onClick={() => { setPendingInput(null); setPendingOutputs([]) }}>
+                Cancel
+              </button>
+            </div>
+          )}
+
           {relayMode && (
             <div className="relayModeIndicator">
               [C] Relay Mode
@@ -1683,23 +1721,6 @@ export default function App() {
       </TooltipProvider>
 
       {error && <div className="error">{error}</div>}
-
-      {pendingInput !== null && (
-        <div className="routeStatus">
-          Creating route from <strong>Input {pendingInput}</strong>
-          {pendingOutputs.length > 0 && (
-            <> → Outputs: {pendingOutputs.join(", ")}</>
-          )}
-          <span className="routeHint">
-            {pendingOutputs.length === 0
-              ? " (Click output to route, Shift-click to add multicast)"
-              : " (Shift-click to add more outputs)"}
-          </span>
-          <button className="cancelBtn" onClick={() => { setPendingInput(null); setPendingOutputs([]) }}>
-            Cancel
-          </button>
-        </div>
-      )}
 
       <div className="body" style={{ gridTemplateColumns: `280px minmax(0, 960px) 6px 1fr` }}>
         <aside className="sidebar">
@@ -2214,29 +2235,20 @@ export default function App() {
           {/* Crossbar Size */}
           <div className="panel">
             <div className="panelTitle">Crossbar Size</div>
-            <div className="sizeSelector sidebar">
-              <Input
-                type="number"
-                min={2}
-                step={1}
-                list="size-options"
-                value={sizeInput}
-                onChange={e => setSizeInput(e.target.value)}
-                onBlur={() => commitSizeInput()}
-                onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    e.currentTarget.blur()
-                  }
-                }}
-                disabled={loading}
-                className="w-full"
-              />
-              <datalist id="size-options">
+            <Select
+              value={String(crossbarSize)}
+              onValueChange={(val) => handleSizeChange(parseInt(val, 10))}
+              disabled={loading}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(n => (
-                  <option key={n} value={n}>{n}×{n}</option>
+                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                 ))}
-              </datalist>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Locks Section */}
